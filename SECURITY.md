@@ -4,7 +4,7 @@
 
 Se você encontrar uma vulnerabilidade de segurança, **não abra uma issue pública**.
 
-Envie um e-mail para: cursosacessototal@gmail.com
+Envie um e-mail para: mffdeo@gmail.com
 
 Inclua:
 - Descrição do problema
