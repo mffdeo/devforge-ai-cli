@@ -210,11 +210,24 @@ svg {
   font-weight: 700;
 }
 
-.locale button {
+.locale button,
+.lang-btn {
   border: 0;
   background: transparent;
   cursor: pointer;
-  padding: 6px 0;
+  padding: 6px 4px;
+  transition: color .2s ease;
+}
+
+.lang-btn {
+  color: var(--muted);
+  font: inherit;
+  font-size: .9rem;
+  font-weight: 700;
+}
+
+.lang-btn.active {
+  color: var(--cyan);
 }
 
 .locale span {
@@ -321,8 +334,8 @@ svg {
 .install-pill {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  width: min(100%, 385px);
+  gap: 8px;
+  width: min(100%, 620px);
   min-height: 57px;
   margin: 0 0 20px;
   padding: 0 11px 0 22px;
@@ -330,14 +343,18 @@ svg {
   border-radius: 8px;
   background: linear-gradient(180deg, rgba(9, 20, 35, .92), rgba(4, 12, 22, .94));
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, .04), 0 0 24px rgba(0, 196, 255, .08);
+  overflow: hidden;
 }
 
-.install-pill code,
-.code-line code {
+.install-pill code {
+  flex: 1;
+  min-width: 0;
   color: var(--lime);
-  font-size: .98rem;
+  font-size: .9rem;
   letter-spacing: -.03em;
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .copy-btn {
@@ -720,12 +737,13 @@ pre {
 
 .install-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr 1.23fr;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 22px;
 }
 
 .install-card {
   min-height: 117px;
+  min-width: 0;
   padding: 17px 18px 14px;
   border: 1px solid rgba(0, 221, 255, .25);
   border-radius: 8px;
@@ -747,18 +765,28 @@ pre {
 .code-line {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 8px;
   min-height: 45px;
+  min-width: 0;
   padding: 0 7px 0 14px;
   border: 1px solid rgba(255, 255, 255, .12);
   border-radius: 6px;
   background: rgba(6, 12, 21, .76);
+  overflow: hidden;
 }
 
 .code-line code {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  font-size: .82rem;
+  flex: 1;
+  min-width: 0;
+  overflow-x: auto;
+  white-space: nowrap;
+  color: var(--lime);
+  font-size: .78rem;
+  letter-spacing: -.02em;
+  padding: 11px 0;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 221, 255, .25) transparent;
 }
 
 .cta-panel {
