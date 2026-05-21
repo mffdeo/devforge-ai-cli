@@ -59,8 +59,9 @@ python -m py_compile {{ compile_targets }}
 
 ## Expected evidence
 
-{% for ev in required_evidence %}- `{{ ev }}`
-{% endfor %}
+{% for ev in evidence_paths %}- **`{{ ev.name }}`** — esperado em:
+{% for p in ev.paths %}  - `{{ p }}`
+{% endfor %}{% endfor %}
 ## Prompt para copiar e colar no seu agente de IA
 
 > Implemente a feature usando o briefing em `.devforge/context/implementation-brief-{{ spec_id }}.md`

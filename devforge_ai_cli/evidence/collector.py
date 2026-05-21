@@ -1,50 +1,11 @@
 import subprocess
 from pathlib import Path
 
-from devforge_ai_cli.core.ignore import should_ignore_path
+from devforge_ai_cli.core.evidence_rules import (
+    check_review_request,
+    evaluate_required_evidence,
+)
 from devforge_ai_cli.core.paths import get_devforge_dir
-
-
-def _first_rglob(base: Path, pattern: str) -> bool:
-    """rglob but skipping ignored dirs (.venv, .git, .devforge, caches...)."""
-    for p in base.rglob(pattern):
-        rel = p.relative_to(base) if p.is_absolute() else p
-        if not should_ignore_path(rel):
-            return True
-    return False
-
-
-def _check_test_report(base: Path, devforge_dir: Path) -> str:
-    checks = [
-        devforge_dir / "test-reports",
-        devforge_dir / "evidence",
-    ]
-    for d in checks:
-        if d.exists() and any(d.glob("test-report*")):
-            return "present"
-    for pattern in ["pytest*.xml", "coverage.xml", "junit.xml", "test-report.md"]:
-        if _first_rglob(base, pattern):
-            return "present"
-    return "missing"
-
-
-def _check_human_review(devforge_dir: Path) -> str:
-    reviews_dir = devforge_dir / "reviews"
-    if reviews_dir.exists() and any(reviews_dir.glob("HUMAN-REVIEW*")):
-        return "present"
-    return "missing"
-
-
-def _check_rollback_plan(base: Path, devforge_dir: Path) -> str:
-    for d in [devforge_dir / "rollback", devforge_dir / "evidence"]:
-        if d.exists() and any(d.glob("ROLLBACK*")):
-            return "present"
-        if d.exists() and any(d.glob("rollback*")):
-            return "present"
-    for pattern in ["ROLLBACK*.md", "rollback*.md"]:
-        if _first_rglob(base, pattern):
-            return "present"
-    return "missing"
 
 
 def _get_diff_stat(base: Path) -> str:
@@ -64,6 +25,17 @@ def _get_diff_stat(base: Path) -> str:
         return ""
 
 
+def _spec_id_from_issue(issue_id: str) -> str | None:
+    """Best-effort: 'ISSUE-PRIORITY-001' → 'SPEC-PRIORITY-001'."""
+    if not issue_id:
+        return None
+    if issue_id.upper().startswith("ISSUE-"):
+        return "SPEC-" + issue_id[6:]
+    if issue_id.upper().startswith("SPEC-"):
+        return issue_id
+    return None
+
+
 def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
     devforge_dir = get_devforge_dir(base)
 
@@ -73,21 +45,22 @@ def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
     required_evidence = policy_check.get("required_evidence", ["audit_log"])
     reasons = policy_check.get("reasons", [])
 
-    # re-evaluate evidence status from filesystem
-    evidence_status: dict[str, str] = {}
-    for ev in required_evidence:
-        if ev == "test_report":
-            evidence_status[ev] = _check_test_report(base, devforge_dir)
-        elif ev == "human_review":
-            evidence_status[ev] = _check_human_review(devforge_dir)
-        elif ev == "rollback_plan":
-            evidence_status[ev] = _check_rollback_plan(base, devforge_dir)
-        elif ev == "audit_log":
-            evidence_status[ev] = (
-                "present" if (devforge_dir / "audit" / "audit.ndjson").exists() else "missing"
-            )
-        else:
-            evidence_status[ev] = "unknown"
+    spec_id = _spec_id_from_issue(issue_id)
+    matches = evaluate_required_evidence(
+        required_evidence, base, devforge_dir, spec_id=spec_id
+    )
+    evidence_status: dict[str, str] = {name: m.status for name, m in matches.items()}
+    evidence_details = {
+        name: {
+            "status": m.status,
+            "matched_paths": m.matched_paths,
+            "matched_rule": m.matched_rule,
+            "expected_paths": m.expected_paths,
+            "notes": m.notes,
+        }
+        for name, m in matches.items()
+    }
+    review_request = check_review_request(base, devforge_dir)
 
     missing_evidence = [k for k, v in evidence_status.items() if v == "missing"]
     tests_passed = evidence_status.get("test_report", "missing") == "present"
@@ -99,12 +72,8 @@ def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
         final_decision = "denied"
         exit_code = 2
     elif policy_decision == "REQUIRE_APPROVAL":
-        if missing_evidence:
-            status = "ready_for_review"
-            final_decision = "pending_human_review"
-        else:
-            status = "ready_for_review"
-            final_decision = "pending_human_review"
+        status = "ready_for_review"
+        final_decision = "pending_human_review"
         exit_code = 1
     else:  # ALLOW
         if missing_evidence:
@@ -118,7 +87,6 @@ def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
 
     diff_stat = _get_diff_stat(base)
 
-    # collect items actually present for the pack
     collected_items = [
         ("diff", "present" if changed_files or diff_stat else "empty"),
     ] + [(ev, evidence_status.get(ev, "missing")) for ev in required_evidence]
@@ -136,6 +104,9 @@ def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
         "changed_files": changed_files,
         "required_evidence": required_evidence,
         "evidence_status": evidence_status,
+        "evidence_details": evidence_details,
+        "review_request_present": review_request.present,
+        "review_request_paths": review_request.matched_paths,
         "missing_evidence": missing_evidence,
         "reasons": reasons,
         "diff_stat": diff_stat,

@@ -3,48 +3,15 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from devforge_ai_cli.audit.ndjson import append_event
+from devforge_ai_cli.core.evidence_rules import (
+    check_review_request,
+    evaluate_required_evidence,
+)
 from devforge_ai_cli.core.git import get_changed_files, get_diff_content
 from devforge_ai_cli.core.ignore import should_ignore_path
 from devforge_ai_cli.core.paths import get_audit_file, get_devforge_dir
 from devforge_ai_cli.core.project import require_init
 from devforge_ai_cli.policy_engine.engine import evaluate_policy
-
-
-def _check_evidence_status(required_evidence: list[str], devforge_dir: Path) -> dict[str, str]:
-    status: dict[str, str] = {}
-    for ev in required_evidence:
-        if ev == "test_report":
-            evidence_dir = devforge_dir / "evidence"
-            reports_dir = devforge_dir / "test-reports"
-            base = devforge_dir.parent
-            present = (
-                reports_dir.exists()
-                or (evidence_dir.exists() and any(evidence_dir.glob("test-report*")))
-                or any(
-                    not should_ignore_path(p.relative_to(base))
-                    for p in base.rglob("pytest*.xml")
-                )
-                or any(
-                    not should_ignore_path(p.relative_to(base))
-                    for p in base.rglob("coverage.xml")
-                )
-            )
-        elif ev == "human_review":
-            reviews_dir = devforge_dir / "reviews"
-            present = reviews_dir.exists() and any(reviews_dir.glob("HUMAN-REVIEW*"))
-        elif ev == "rollback_plan":
-            rollback_dir = devforge_dir / "rollback"
-            evidence_dir = devforge_dir / "evidence"
-            present = (
-                (rollback_dir.exists() and any(rollback_dir.glob("ROLLBACK*")))
-                or (evidence_dir.exists() and any(evidence_dir.glob("rollback*")))
-            )
-        elif ev == "audit_log":
-            present = (devforge_dir / "audit" / "audit.ndjson").exists()
-        else:
-            present = False
-        status[ev] = "present" if present else "missing"
-    return status
 
 
 def run_policy_check(
@@ -100,8 +67,24 @@ def run_policy_check(
         existing_policy=existing_policy,
     )
 
-    evidence_status = _check_evidence_status(result["required_evidence"], devforge_dir)
+    spec_id = existing_policy.get("spec_id")
+    matches = evaluate_required_evidence(
+        result["required_evidence"], base, devforge_dir, spec_id=spec_id
+    )
+    evidence_status = {name: m.status for name, m in matches.items()}
+    evidence_details = {
+        name: {
+            "status": m.status,
+            "matched_paths": m.matched_paths,
+            "matched_rule": m.matched_rule,
+            "expected_paths": m.expected_paths,
+            "notes": m.notes,
+        }
+        for name, m in matches.items()
+    }
     missing_evidence = [k for k, v in evidence_status.items() if v == "missing"]
+
+    review_request = check_review_request(base, devforge_dir)
 
     timestamp = datetime.now(timezone.utc).isoformat()
     prcp_level = profile.get("prcp", {}).get("task_elevation", "Standard")
@@ -110,7 +93,10 @@ def run_policy_check(
     payload = {
         **result,
         "evidence_status": evidence_status,
+        "evidence_details": evidence_details,
         "missing_evidence": missing_evidence,
+        "review_request_present": review_request.present,
+        "review_request_paths": review_request.matched_paths,
         "policy_source": policy_source,
         "prcp_level": prcp_level,
         "timestamp": timestamp,
@@ -143,6 +129,9 @@ def run_policy_check(
             "reasons": result["reasons"],
             "required_evidence": result["required_evidence"],
             "evidence_status": evidence_status,
+            "evidence_details": evidence_details,
+            "review_request_present": review_request.present,
+            "review_request_paths": review_request.matched_paths,
             "recommended_actions": result["recommended_actions"],
             "generated_files": generated_files,
             "next_step": "devforge evidence --issue <ISSUE-ID>",
@@ -154,7 +143,22 @@ def run_policy_check(
         for r in result["reasons"]:
             print(f"  - {r}")
         for ev in result["required_evidence"]:
-            print(f"  - {ev}: {evidence_status.get(ev, 'unknown')}")
+            detail = evidence_details.get(ev, {})
+            status = detail.get("status", "unknown")
+            if status == "present":
+                paths = ", ".join(detail.get("matched_paths") or [])
+                rule = detail.get("matched_rule", "")
+                print(f"  - {ev}: present [{rule}] → {paths}")
+            else:
+                expected = ", ".join(detail.get("expected_paths") or [])
+                print(f"  - {ev}: missing — esperado em: {expected}")
+                for note in detail.get("notes", []):
+                    print(f"      note: {note}")
+        if review_request.present and "human_review" in result["required_evidence"]:
+            print(
+                f"  - review_request: present → {', '.join(review_request.matched_paths)} "
+                "(não substitui human_review aprovado)"
+            )
         print(f"Exit code: {result['exit_code']}")
     else:
         from devforge_ai_cli.ui.renderers.policy_screen import render_policy

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from devforge_ai_cli.core.agent_instructions import render_agent_instructions
+from devforge_ai_cli.core.evidence_rules import check_evidence
 from devforge_ai_cli.core.paths import TEMPLATES_DIR, get_devforge_dir
 from devforge_ai_cli.policy_engine.decisions import PolicyDecision
 
@@ -428,6 +429,15 @@ def _write_implementation_brief(base: Path, env, result: PlanResult) -> Path:
         p for p in in_scope if p.endswith(".py")
     ) or "app.py"
 
+    devforge_dir = get_devforge_dir(base)
+    evidence_paths = [
+        {
+            "name": ev,
+            "paths": check_evidence(ev, base, devforge_dir, spec_id=result.spec_id).expected_paths,
+        }
+        for ev in result.required_evidence
+    ]
+
     tmpl = env.get_template("implementation-brief.md.j2")
     brief_path.write_text(
         tmpl.render(
@@ -442,6 +452,7 @@ def _write_implementation_brief(base: Path, env, result: PlanResult) -> Path:
             in_scope=in_scope,
             compile_targets=compile_targets,
             required_evidence=result.required_evidence,
+            evidence_paths=evidence_paths,
         ),
         encoding="utf-8",
     )

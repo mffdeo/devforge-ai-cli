@@ -62,6 +62,9 @@ def run_evidence(issue: str, plain: bool, output_json: bool, cwd: Path | None = 
             "changed_files": evidence["changed_files"],
             "required_evidence": evidence["required_evidence"],
             "evidence_status": evidence["evidence_status"],
+            "evidence_details": evidence["evidence_details"],
+            "review_request_present": evidence["review_request_present"],
+            "review_request_paths": evidence["review_request_paths"],
             "generated_files": generated_files,
             "next_step": "Abrir pull request com evidence pack anexado." if evidence["final_decision"] == "ready_for_pr" else "Solicitar revisão humana.",
         }))
