@@ -4,7 +4,7 @@
 > Classifique risco, controle contexto, aplique políticas e gere evidências auditáveis antes do merge.
 
 <p align="center">
-  <img src="docs/assets/how-it-works.png" alt="DevForge CLI How It Works" width="100%">
+  <img src="docs/assets/screenshots/how-it-works.png" alt="DevForge CLI How It Works" width="100%">
 </p>
 
 <p align="center">
