@@ -1,0 +1,79 @@
+# Review Brief — {{ issue_id }}
+
+> Use este briefing como contexto para uma revisão assistida por IA.
+> A IA pode apontar riscos, anomalias e itens fora de escopo.
+> **A IA NÃO aprova a revisão humana.** A aprovação final é registrada por:
+>
+> ```
+> devforge review --issue {{ issue_id }}
+> ```
+>
+> Somente um humano operando esse comando satisfaz `human_review`.
+
+## Contexto
+
+- **issue_id:** `{{ issue_id }}`
+- **policy_decision:** `{{ policy_decision }}`
+- **PRCP level:** `{{ prcp_level }}`
+
+## Referências
+
+- `specs/{{ issue_id }}.md`
+- `.devforge/plans/PLAN-{{ issue_id }}.md`
+- `.devforge/context/context-pack.md`
+- `.devforge/context/agent-instructions.md`
+- `.devforge/context/implementation-brief-{{ issue_id }}.md`
+- `.devforge/policy/POLICY-DECISION-{{ issue_id }}.json`
+- `.devforge/policy/POLICY-CHECK-LATEST.json`
+
+## Reasons
+
+{% if reasons %}{% for r in reasons %}- {{ r }}
+{% endfor %}{% else %}_(nenhuma reason registrada)_
+{% endif %}
+## Changed files
+
+{% if changed_files %}{% for f in changed_files %}- `{{ f }}`
+{% endfor %}{% else %}_(sem arquivos alterados no snapshot do policy check)_
+{% endif %}
+## Required evidence
+
+{% for ev in required_evidence %}- **{{ ev }}**: {{ evidence_status.get(ev, "unknown") }}{% if evidence_details.get(ev) and evidence_details[ev].get("matched_paths") %}
+  - found: {{ evidence_details[ev]["matched_paths"] | join(", ") }}{% endif %}{% if evidence_details.get(ev) and evidence_details[ev].get("expected_paths") and evidence_status.get(ev) != "present" %}
+  - expected: {{ evidence_details[ev]["expected_paths"] | join(", ") }}{% endif %}
+{% endfor %}
+{% if review_request_paths %}## Review request files
+
+{% for p in review_request_paths %}- `{{ p }}`
+{% endfor %}
+{% endif %}## O que a IA deve checar
+
+- A mudança realmente entrega a SPEC?
+- O escopo bate com o Plan Pack?
+- Algum arquivo alterado está fora do escopo da SPEC?
+- O diff contém segredo, token, credencial ou chave privada?
+- Há sinais de login/auth/cloud não pedidos pela SPEC?
+- O test report cobre o que a SPEC exige?
+- O rollback plan é minimamente operacional?
+
+## Resposta esperada da IA
+
+A IA deve devolver:
+
+1. Lista de **riscos detectados** (com arquivo/linha quando possível).
+2. Lista de **anomalias** ou diffs estranhos.
+3. Lista de **itens fora do escopo da SPEC**.
+4. Recomendação: pode seguir para human_review, ou precisa de ajuste antes.
+
+Ela **não** deve criar `.devforge/reviews/HUMAN-REVIEW-{{ issue_id }}.md` por conta própria.
+
+## Próximo passo humano
+
+```
+devforge review --issue {{ issue_id }}
+```
+
+{% if suggested_prompt %}## Prompt sugerido para o agente
+
+> {{ suggested_prompt }}
+{% endif %}

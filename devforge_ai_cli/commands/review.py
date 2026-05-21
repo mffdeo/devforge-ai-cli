@@ -240,6 +240,14 @@ def _print_review_summary(
     for q in _CHECKLIST:
         print(f"  - {q}")
 
+    brief = policy_check.get("review_brief_path")
+    prompt = policy_check.get("suggested_ai_review_prompt")
+    if brief:
+        print(f"\nReview brief: {brief}")
+    if prompt:
+        print("Sugestão para revisão assistida com IA:")
+        print(f'  "{prompt}"')
+
     nxt = policy_check.get("next_step")
     if nxt:
         print(f"\nNext step (após review): {nxt}")

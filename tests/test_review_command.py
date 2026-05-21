@@ -484,6 +484,93 @@ def test_review_json_mode_does_not_print_summary(tmp_path: Path, capsys):
     assert "Arquivos para revisar" not in out
 
 
+def test_policy_check_generates_review_brief_when_human_review_missing(
+    tmp_path: Path, capsys
+):
+    _setup(tmp_path)
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert data["review_brief_path"] == ".devforge/context/review-brief-SPEC-PRIORITY-001.md"
+    assert (tmp_path / data["review_brief_path"]).exists()
+    md = (tmp_path / data["review_brief_path"]).read_text()
+    # Must surface the SPEC, must NOT empower IA to approve
+    assert "SPEC-PRIORITY-001" in md
+    assert "A IA NÃO aprova a revisão humana" in md
+    assert "devforge review --issue SPEC-PRIORITY-001" in md
+
+
+def test_policy_check_json_includes_review_brief_path_and_prompt(
+    tmp_path: Path, capsys
+):
+    _setup(tmp_path)
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert "review_brief_path" in data
+    assert "suggested_ai_review_prompt" in data
+    assert data["suggested_ai_review_prompt"].startswith("Revise a mudança usando")
+    assert ".devforge/context/review-brief-SPEC-PRIORITY-001.md" in data["suggested_ai_review_prompt"]
+
+
+def test_policy_check_recommended_actions_include_ai_review_prompt(
+    tmp_path: Path, capsys
+):
+    _setup(tmp_path)
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    actions_text = " | ".join(data["recommended_actions"])
+    assert "Revisão assistida" in actions_text
+    assert ".devforge/context/review-brief-SPEC-PRIORITY-001.md" in actions_text
+    assert "devforge review --issue SPEC-PRIORITY-001" in actions_text
+    assert "devforge evidence --issue SPEC-PRIORITY-001" in actions_text
+
+
+def test_policy_check_drops_ai_review_when_human_review_present(
+    tmp_path: Path, capsys
+):
+    _setup(tmp_path)
+    dd = get_devforge_dir(tmp_path)
+    (dd / "reviews").mkdir(exist_ok=True)
+    (dd / "reviews" / "HUMAN-REVIEW-SPEC-PRIORITY-001.md").write_text("Approved\n")
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    actions_text = " | ".join(data["recommended_actions"])
+    assert "Revisão assistida" not in actions_text
+    assert "devforge review --issue" not in actions_text
+    assert data["review_brief_path"] is None
+    assert data["suggested_ai_review_prompt"] is None
+
+
+def test_review_summary_includes_review_brief_path(tmp_path: Path, capsys):
+    _setup(tmp_path)
+    capsys.readouterr()
+    run_review(
+        issue="SPEC-PRIORITY-001",
+        reviewer="Marcos", role=None,
+        approve=True, yes=True, notes=None,
+        plain=True, output_json=False, cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    assert "Review brief: .devforge/context/review-brief-SPEC-PRIORITY-001.md" in out
+    assert "Sugestão para revisão assistida com IA" in out
+    assert "Revise a mudança usando" in out
+
+
 def test_full_flow_remains_green(tmp_path: Path):
     """init → scan → plan → policy check → review → policy check → evidence."""
     spec = _setup(tmp_path)

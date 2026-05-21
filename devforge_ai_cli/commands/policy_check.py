@@ -11,6 +11,10 @@ from devforge_ai_cli.core.git import get_changed_files, get_diff_content
 from devforge_ai_cli.core.ignore import should_ignore_path
 from devforge_ai_cli.core.paths import get_audit_file, get_devforge_dir
 from devforge_ai_cli.core.project import require_init
+from devforge_ai_cli.core.review_brief import (
+    render_review_brief,
+    suggested_ai_review_prompt,
+)
 from devforge_ai_cli.policy_engine.engine import evaluate_policy
 
 
@@ -89,21 +93,36 @@ def run_policy_check(
 
     review_request = check_review_request(base, devforge_dir)
 
+    # ── review brief for AI-assisted review ─────────────────────────────────
+    review_brief_relpath: str | None = None
+    ai_review_prompt: str | None = None
+    human_review_missing = (
+        result["decision"] == "REQUIRE_APPROVAL"
+        and "human_review" in result["required_evidence"]
+        and evidence_status.get("human_review") == "missing"
+        and spec_id is not None
+    )
+    if human_review_missing:
+        brief_pc = {**result, "evidence_status": evidence_status, "evidence_details": evidence_details,
+                    "review_request_paths": review_request.matched_paths,
+                    "prcp_level": profile.get("prcp", {}).get("task_elevation", "Standard")}
+        brief_path = render_review_brief(base, spec_id, brief_pc)
+        review_brief_relpath = str(brief_path.relative_to(base))
+        ai_review_prompt = suggested_ai_review_prompt(spec_id)
+
     # Rebuild recommended_actions so we only suggest evidences that are
     # still missing. The engine emits the generic list per required item;
-    # we drop items already present, point human_review at the new guided
-    # `devforge review` command, and append a SPEC-specific evidence
-    # command at the end.
-    _action_by_evidence = {
-        "test_report": "Rodar testes e anexar test_report",
-        "human_review": f"Registrar revisão humana: devforge review --issue {evidence_issue_id}",
-        "rollback_plan": "Criar rollback plan",
-    }
-    recommended = [
-        _action_by_evidence[ev]
-        for ev in result["required_evidence"]
-        if ev in _action_by_evidence and evidence_status.get(ev) == "missing"
-    ]
+    # we drop items already present, point human_review at the guided
+    # review flow (AI-assisted review + devforge review), and append a
+    # SPEC-specific evidence command at the end.
+    recommended: list[str] = []
+    if "test_report" in result["required_evidence"] and evidence_status.get("test_report") == "missing":
+        recommended.append("Rodar testes e anexar test_report")
+    if "rollback_plan" in result["required_evidence"] and evidence_status.get("rollback_plan") == "missing":
+        recommended.append("Criar rollback plan")
+    if human_review_missing:
+        recommended.append(f"Revisão assistida: peça a uma IA: \"{ai_review_prompt}\"")
+        recommended.append(f"Registrar revisão humana: devforge review --issue {evidence_issue_id}")
     recommended.append(f"Gerar evidence pack: devforge evidence --issue {evidence_issue_id}")
     result["recommended_actions"] = recommended
 
@@ -118,6 +137,8 @@ def run_policy_check(
         "missing_evidence": missing_evidence,
         "review_request_present": review_request.present,
         "review_request_paths": review_request.matched_paths,
+        "review_brief_path": review_brief_relpath,
+        "suggested_ai_review_prompt": ai_review_prompt,
         "policy_source": policy_source,
         "prcp_level": prcp_level,
         "timestamp": timestamp,
@@ -153,6 +174,8 @@ def run_policy_check(
             "evidence_details": evidence_details,
             "review_request_present": review_request.present,
             "review_request_paths": review_request.matched_paths,
+            "review_brief_path": review_brief_relpath,
+            "suggested_ai_review_prompt": ai_review_prompt,
             "recommended_actions": result["recommended_actions"],
             "generated_files": generated_files,
             "evidence_issue_id": evidence_issue_id,
