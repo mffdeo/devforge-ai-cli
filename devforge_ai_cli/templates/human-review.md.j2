@@ -1,0 +1,41 @@
+# Human Review — {{ issue_id }}
+
+- **decision:** Approved
+- **reviewer:** {{ reviewer }}{% if role %} ({{ role }}){% endif %}
+- **reviewer_source:** `{{ reviewer_source }}`
+- **timestamp:** {{ timestamp }}
+
+## Context
+
+- **issue_id:** `{{ issue_id }}`
+- **policy_decision:** `{{ policy_decision }}`
+- **PRCP level:** `{{ prcp_level }}`
+
+## Reasons
+
+{% for r in reasons %}- {{ r }}
+{% endfor %}
+## Changed files
+
+{% if changed_files %}{% for f in changed_files %}- `{{ f }}`
+{% endfor %}{% else %}_(nenhum arquivo alterado registrado no policy check)_
+{% endif %}
+## Evidence status
+
+{% for name, status in evidence_status.items() %}- **{{ name }}**: {{ status }}
+{% endfor %}
+## Reviewer checklist
+
+- [x] SPEC foi revisada
+- [x] Plan Pack foi seguido
+- [x] Mudança ficou limitada ao escopo
+- [x] Arquivos alterados fazem sentido
+- [x] Test report está presente (quando exigido)
+- [x] Rollback plan está presente (quando exigido)
+- [x] Diff não contém segredo, token ou credencial
+- [x] Não foi adicionado login/auth/cloud fora do escopo
+
+{% if notes %}## Notes
+
+{{ notes }}
+{% endif %}

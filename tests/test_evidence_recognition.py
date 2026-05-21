@@ -311,7 +311,9 @@ def test_policy_check_includes_human_review_action_when_missing(tmp_path: Path, 
     )
     data = json.loads(capsys.readouterr().out)
     actions = " | ".join(data["recommended_actions"])
-    assert "Solicitar revisão humana" in actions
+    # Should now point at the guided review command, not the bare "Solicitar"
+    assert "devforge review --issue SPEC-PRIORITY-001" in actions
+    assert "Solicitar revisão humana" not in actions
 
 
 def test_policy_check_omits_human_review_action_when_present(tmp_path: Path, capsys):
@@ -327,6 +329,9 @@ def test_policy_check_omits_human_review_action_when_present(tmp_path: Path, cap
     data = json.loads(capsys.readouterr().out)
     actions = " | ".join(data["recommended_actions"])
     assert "Solicitar revisão humana" not in actions
+    assert "devforge review --issue" not in actions
+    # And the only remaining action is the evidence pack
+    assert any("devforge evidence --issue SPEC-PRIORITY-001" in a for a in data["recommended_actions"])
 
 
 # ── check_evidence dispatcher ────────────────────────────────────────────────

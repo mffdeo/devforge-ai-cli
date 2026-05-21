@@ -91,11 +91,12 @@ def run_policy_check(
 
     # Rebuild recommended_actions so we only suggest evidences that are
     # still missing. The engine emits the generic list per required item;
-    # we drop items already present and append a SPEC-specific evidence
+    # we drop items already present, point human_review at the new guided
+    # `devforge review` command, and append a SPEC-specific evidence
     # command at the end.
     _action_by_evidence = {
         "test_report": "Rodar testes e anexar test_report",
-        "human_review": "Solicitar revisão humana",
+        "human_review": f"Registrar revisão humana: devforge review --issue {evidence_issue_id}",
         "rollback_plan": "Criar rollback plan",
     }
     recommended = [

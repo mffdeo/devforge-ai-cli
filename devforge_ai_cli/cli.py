@@ -5,6 +5,7 @@ from devforge_ai_cli.commands import evidence as evidence_cmd
 from devforge_ai_cli.commands import init as init_cmd
 from devforge_ai_cli.commands import plan as plan_cmd
 from devforge_ai_cli.commands import policy_check as policy_cmd
+from devforge_ai_cli.commands import review as review_cmd
 from devforge_ai_cli.commands import scan as scan_cmd
 
 app = typer.Typer(
@@ -86,4 +87,29 @@ def evidence(
 ) -> None:
     """Collect and package evidence before a PR."""
     exit_code = evidence_cmd.run_evidence(issue=issue, plain=plain, output_json=output_json)
+    raise typer.Exit(code=exit_code)
+
+
+@app.command()
+def review(
+    issue: str = typer.Option(..., "--issue", help="Issue or SPEC ID for the review."),
+    reviewer: str | None = typer.Option(None, "--reviewer", help="Reviewer name (overrides detection)."),
+    role: str | None = typer.Option(None, "--role", help="Reviewer role (e.g. Maintainer)."),
+    approve: bool = typer.Option(False, "--approve", help="Approve without interactive prompt."),
+    yes: bool = typer.Option(False, "--yes", help="Skip every confirmation (CI use)."),
+    notes: str | None = typer.Option(None, "--notes", help="Optional reviewer notes."),
+    plain: bool = typer.Option(False, "--plain", help="Plain text output."),
+    output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
+) -> None:
+    """Record an explicit human review approval for the current issue."""
+    exit_code = review_cmd.run_review(
+        issue=issue,
+        reviewer=reviewer,
+        role=role,
+        approve=approve,
+        yes=yes,
+        notes=notes,
+        plain=plain,
+        output_json=output_json,
+    )
     raise typer.Exit(code=exit_code)

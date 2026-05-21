@@ -10,6 +10,8 @@ class DevForgeConfig(BaseModel):
     audit_enabled: bool = True
     output_format: str = "markdown+json"
     cloud_login: bool = False
+    reviewer_name: str | None = None
+    reviewer_role: str | None = None
 
 
 def write_config(path: Path, config: DevForgeConfig) -> None:
