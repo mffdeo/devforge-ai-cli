@@ -1,0 +1,22 @@
+name: default
+version: "0.1.0"
+description: Default policy pack for DevForge CLI.
+
+rules:
+  - id: auth-check
+    description: Flag authentication-related changes
+    patterns: [auth, authentication, login, password, token]
+    decision: REQUIRE_APPROVAL
+    reasons: [touches_auth]
+
+  - id: sensitive-data
+    description: Flag sensitive data handling
+    patterns: [personal, cpf, email, payment, billing]
+    decision: REQUIRE_APPROVAL
+    reasons: [sensitive_data_possible, human_review_required]
+
+  - id: db-migration
+    description: Flag database schema changes
+    patterns: [migration, schema, database]
+    decision: REQUIRE_APPROVAL
+    reasons: [db_migration_detected]

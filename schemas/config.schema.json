@@ -1,0 +1,13 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "DevForge Config",
+  "type": "object",
+  "properties": {
+    "project_name": { "type": "string" },
+    "edition": { "type": "string", "enum": ["community", "enterprise"] },
+    "audit_enabled": { "type": "boolean" },
+    "output_format": { "type": "string" },
+    "cloud_login": { "type": "boolean" }
+  },
+  "required": ["project_name"]
+}

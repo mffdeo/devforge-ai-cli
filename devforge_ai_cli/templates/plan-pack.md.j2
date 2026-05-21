@@ -1,0 +1,18 @@
+# Plan Pack — {{ spec_id }}
+
+**SPEC:** {{ spec_path }}
+**Generated:** {{ timestamp }}
+**PRCP:** {{ prcp_level }}
+
+## Tasks
+
+{% for task in tasks %}- [ ] {{ task }}
+{% endfor %}
+
+## Context Pack
+
+See `.devforge/context/context-pack.md`
+
+## Policy
+
+Initial decision: {{ policy_decision }}

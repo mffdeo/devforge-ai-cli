@@ -1,0 +1,18 @@
+# Context Pack — {{ spec_id }}
+
+**Generated:** {{ timestamp }}
+
+## Allowed Uses
+
+{% for item in allowed_uses %}- {{ item }}
+{% endfor %}
+
+## Blocked Uses
+
+{% for item in blocked_uses %}- {{ item }}
+{% endfor %}
+
+## Required Evidence
+
+{% for item in required_evidence %}- {{ item }}
+{% endfor %}

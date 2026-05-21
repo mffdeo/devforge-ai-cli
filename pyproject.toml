@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "devforge-ai-cli"
+version = "0.1.0"
+description = "Local-first governance CLI for AI-assisted SDLC"
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.12"
+dependencies = [
+    "typer>=0.12",
+    "rich>=13",
+    "pydantic>=2",
+    "pyyaml>=6",
+    "jinja2>=3",
+]
+
+[project.scripts]
+devforge = "devforge_ai_cli.cli:app"
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8",
+    "pytest-cov",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["devforge_ai_cli"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
