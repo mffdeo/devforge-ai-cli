@@ -31,7 +31,7 @@ Antes de uma mudança entrar no repositório principal, o DevForge CLI ajuda a r
 ## Fluxo principal
 
 ```
-init → scan → plan → policy check → evidence
+init → scan → plan → policy check → review → evidence
 ```
 
 ![DevForge CLI — fluxo principal](docs/assets/screenshots/how-it-works.png)
@@ -45,7 +45,7 @@ O diagrama acima resume a sequência em três blocos:
 
 - **R1 — Author + Workspace.** O autor escreve a `SPEC`, roda `devforge init` e o repositório passa a carregar `.devforge/config.yml` ao lado de IDE, agente e Git.
 - **R2 — Scan + Governance core.** `devforge scan` classifica risco e detecta áreas sensíveis. `devforge plan --spec` produz o **PRCP baseline**, o **Context Pack** e a **Policy Decision** (`ALLOW` / `REQUIRE_APPROVAL`).
-- **R3 — Policy gate + Review.** `devforge policy check --diff` avalia o diff contra a política. `devforge evidence --issue …` emite o **Evidence Pack** auditável (`EVID-…`) que acompanha o PR.
+- **R3 — Policy gate + Review.** `devforge policy check --diff` avalia o diff contra a política. Quando a política exige aprovação, `devforge review --issue …` registra a revisão humana antes de `devforge evidence --issue …` emitir o **Evidence Pack** auditável (`EVID-…`) que acompanha o PR.
 
 ---
 
@@ -104,7 +104,10 @@ devforge plan --spec specs/SPEC-AUTH-001.md
 # 6. Verifique política antes do merge
 devforge policy check --diff
 
-# 7. Gere o pacote de evidência
+# 7. Registre revisão humana quando exigida
+devforge review --issue ISSUE-AUTH-001 --approve
+
+# 8. Gere o pacote de evidência
 devforge evidence --issue ISSUE-AUTH-001
 ```
 

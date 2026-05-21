@@ -5,7 +5,7 @@
 O DevForge CLI v0.1.0 entrega o fluxo principal de governança local:
 
 ```
-init → scan → plan → policy check → evidence
+init → scan → plan → policy check → review → evidence
 ```
 
 ### Comandos incluídos
@@ -16,6 +16,7 @@ init → scan → plan → policy check → evidence
 | `devforge scan` | Funcional |
 | `devforge plan --spec` | Funcional |
 | `devforge policy check --diff` | Funcional |
+| `devforge review --issue` | Funcional |
 | `devforge evidence --issue` | Funcional |
 
 ### Artefatos gerados
@@ -27,6 +28,7 @@ init → scan → plan → policy check → evidence
 - `.devforge/context/context-pack.md`
 - `.devforge/policy/POLICY-DECISION-<SPEC-ID>.json`
 - `.devforge/policy/POLICY-CHECK-LATEST.json`
+- `.devforge/reviews/HUMAN-REVIEW-<SPEC-ID>.md`
 - `.devforge/evidence/EVID-<ISSUE-ID>.json`
 - `.devforge/evidence/EVID-<ISSUE-ID>.md`
 - `.devforge/audit/audit.ndjson`

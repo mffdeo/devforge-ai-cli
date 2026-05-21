@@ -79,23 +79,36 @@ def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
     tests_passed = evidence_status.get("test_report", "missing") == "present"
     human_review_required = "human_review" in required_evidence
 
-    # final decision
+    human_review_status = evidence_status.get("human_review", "missing")
+
+    # Final decision is derived from the policy gate plus the evidence that
+    # is actually present now. A recorded human review must never remain in a
+    # pending_human_review state.
     if policy_decision == "DENY":
-        status = "denied"
+        status = "blocked"
         final_decision = "denied"
         exit_code = 2
     elif policy_decision == "REQUIRE_APPROVAL":
-        status = "ready_for_review"
-        final_decision = "pending_human_review"
-        exit_code = 1
-    else:  # ALLOW
-        if missing_evidence:
-            status = "blocked_missing_evidence"
-            final_decision = "blocked_missing_evidence"
+        if human_review_status == "missing":
+            status = "waiting_for_human_review"
+            final_decision = "pending_human_review"
+            exit_code = 1
+        elif missing_evidence:
+            status = "missing_required_evidence"
+            final_decision = "pending_required_evidence"
             exit_code = 1
         else:
-            status = "ready_for_pr"
-            final_decision = "ready_for_pr"
+            status = "ready_for_merge"
+            final_decision = "approved_with_human_review"
+            exit_code = 0
+    else:  # ALLOW
+        if missing_evidence:
+            status = "missing_required_evidence"
+            final_decision = "pending_required_evidence"
+            exit_code = 1
+        else:
+            status = "ready_for_merge"
+            final_decision = "allowed"
             exit_code = 0
 
     diff_stat = _get_diff_stat(base)

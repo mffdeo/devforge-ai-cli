@@ -115,6 +115,7 @@ devforge evidence --issue ISSUE-AUTH-001 [--plain] [--json]
 ```
 
 **Requer:** `devforge init`, `devforge scan`, `devforge plan`, `devforge policy check`.
+Quando a política retorna `REQUIRE_APPROVAL`, rode `devforge review --issue <ISSUE-ID>` antes de gerar um Evidence Pack pronto para merge.
 
 **Coleta:**
 - Changed files do último policy check
@@ -126,9 +127,10 @@ devforge evidence --issue ISSUE-AUTH-001 [--plain] [--json]
   - `audit_log` — sempre presente se `devforge init` foi rodado
 
 **Final decisions:**
-- `ready_for_pr` — ALLOW + todas evidências presentes
-- `pending_human_review` — REQUIRE_APPROVAL (esperado)
-- `blocked_missing_evidence` — evidências críticas ausentes
+- `allowed` — ALLOW + evidências mínimas presentes
+- `approved_with_human_review` — REQUIRE_APPROVAL + todas evidências obrigatórias presentes, incluindo `human_review`
+- `pending_human_review` — REQUIRE_APPROVAL + `human_review` ausente
+- `pending_required_evidence` — evidências obrigatórias ausentes
 - `denied` — policy check foi DENY
 
 **Gera:**
@@ -136,8 +138,8 @@ devforge evidence --issue ISSUE-AUTH-001 [--plain] [--json]
 - `.devforge/evidence/EVID-<ISSUE-ID>.md`
 
 **Exit codes:**
-- `0` — ready_for_pr
-- `1` — pending_human_review ou blocked_missing_evidence
+- `0` — ready_for_merge
+- `1` — pending_human_review ou pending_required_evidence
 - `2` — denied
 
 ---
@@ -157,6 +159,6 @@ devforge evidence --issue ISSUE-AUTH-001 [--plain] [--json]
 
 | Código | Significado |
 |---|---|
-| `0` | Sucesso / ALLOW / ready_for_pr |
+| `0` | Sucesso / ALLOW aprovado / REQUIRE_APPROVAL aprovado com revisão humana |
 | `1` | REQUIRE_APPROVAL / evidência pendente / erro de precondição |
 | `2` | DENY / mudança bloqueada |

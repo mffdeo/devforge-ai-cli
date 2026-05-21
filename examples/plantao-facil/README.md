@@ -34,10 +34,14 @@ devforge policy check --diff
 # → Decision: REQUIRE_APPROVAL (exit 1)
 # → touches_auth, sensitive_data_possible, human_review_required
 
-# 6. Gerar evidence pack
+# 6. Registrar revisão humana
+devforge review --issue ISSUE-AUTH-001 --approve
+# → generated: .devforge/reviews/HUMAN-REVIEW-ISSUE-AUTH-001.md
+
+# 7. Gerar evidence pack
 devforge evidence --issue ISSUE-AUTH-001
-# → status: ready_for_review
-# → final_decision: pending_human_review
+# → status: ready_for_merge
+# → final_decision: approved_with_human_review
 ```
 
 ---

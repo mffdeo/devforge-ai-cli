@@ -6,7 +6,10 @@ import pytest
 from devforge_ai_cli.commands.evidence import run_evidence
 from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.plan import run_plan
+from devforge_ai_cli.commands.policy_check import run_policy_check
+from devforge_ai_cli.commands.review import run_review
 from devforge_ai_cli.commands.scan import run_scan_cmd
+from devforge_ai_cli.core.paths import get_devforge_dir
 
 # ── helpers ───────────────────────────────────────────────────────────────────
 
@@ -85,6 +88,16 @@ def _full_setup(tmp_path: Path, policy: dict = POLICY_REQUIRE) -> None:
     (specs / "SPEC-AUTH-001.md").write_text(SPEC_AUTH)
     run_plan(spec=str(specs / "SPEC-AUTH-001.md"), plain=True, output_json=False, cwd=tmp_path)
     _write_policy_check(tmp_path, policy)
+
+
+def _plant_required_evidence(tmp_path: Path, spec_id: str = "SPEC-AUTH-001") -> None:
+    dd = get_devforge_dir(tmp_path)
+    (dd / "test-reports").mkdir(exist_ok=True)
+    (dd / "test-reports" / f"{spec_id}-manual.md").write_text("# tests\n")
+    (dd / "reviews").mkdir(exist_ok=True)
+    (dd / "reviews" / f"HUMAN-REVIEW-{spec_id}.md").write_text("Approved\n")
+    (tmp_path / "docs" / "rollback").mkdir(parents=True, exist_ok=True)
+    (tmp_path / "docs" / "rollback" / f"{spec_id}.md").write_text("# rollback\n")
 
 
 def _call(tmp_path, *, issue="ISSUE-AUTH-001", plain=True, output_json=False):
@@ -195,24 +208,119 @@ def test_evidence_deny_returns_exit_code_2(tmp_path):
     assert exit_code == 2
     data = json.loads((tmp_path / ".devforge" / "evidence" / "EVID-ISSUE-AUTH-001.json").read_text())
     assert data["final_decision"] == "denied"
-    assert data["status"] == "denied"
+    assert data["status"] == "blocked"
 
 
-def test_evidence_require_approval_returns_pending_human_review(tmp_path):
+def test_evidence_require_approval_with_human_review_missing_returns_pending_human_review(tmp_path):
     _full_setup(tmp_path, POLICY_REQUIRE)
     exit_code = _call(tmp_path)
     assert exit_code == 1
     data = json.loads((tmp_path / ".devforge" / "evidence" / "EVID-ISSUE-AUTH-001.json").read_text())
     assert data["final_decision"] == "pending_human_review"
+    assert data["status"] == "waiting_for_human_review"
     assert data["human_review_required"] is True
 
 
-def test_evidence_allow_with_all_evidence_returns_ready_for_pr(tmp_path):
+def test_evidence_require_approval_with_human_review_present_returns_approved(tmp_path):
+    _full_setup(tmp_path, POLICY_REQUIRE)
+    _plant_required_evidence(tmp_path)
+    exit_code = _call(tmp_path)
+    assert exit_code == 0
+    data = json.loads((tmp_path / ".devforge" / "evidence" / "EVID-ISSUE-AUTH-001.json").read_text())
+    assert data["evidence_status"]["human_review"] == "present"
+    assert data["final_decision"] == "approved_with_human_review"
+
+
+def test_evidence_require_approval_with_all_evidence_present_returns_ready_for_merge(tmp_path):
+    _full_setup(tmp_path, POLICY_REQUIRE)
+    _plant_required_evidence(tmp_path)
+    _call(tmp_path)
+    data = json.loads((tmp_path / ".devforge" / "evidence" / "EVID-ISSUE-AUTH-001.json").read_text())
+    assert data["missing_evidence"] == []
+    assert data["status"] == "ready_for_merge"
+
+
+def test_evidence_require_approval_with_human_review_present_but_other_missing_waits_for_evidence(tmp_path):
+    _full_setup(tmp_path, POLICY_REQUIRE)
+    dd = get_devforge_dir(tmp_path)
+    (dd / "reviews").mkdir(exist_ok=True)
+    (dd / "reviews" / "HUMAN-REVIEW-SPEC-AUTH-001.md").write_text("Approved\n")
+    exit_code = _call(tmp_path)
+    assert exit_code == 1
+    data = json.loads((tmp_path / ".devforge" / "evidence" / "EVID-ISSUE-AUTH-001.json").read_text())
+    assert data["evidence_status"]["human_review"] == "present"
+    assert data["final_decision"] == "pending_required_evidence"
+    assert data["status"] == "missing_required_evidence"
+
+
+def test_evidence_allow_with_all_evidence_returns_allowed(tmp_path):
     _full_setup(tmp_path, POLICY_ALLOW)
     exit_code = _call(tmp_path)
     assert exit_code == 0
     data = json.loads((tmp_path / ".devforge" / "evidence" / "EVID-ISSUE-AUTH-001.json").read_text())
-    assert data["final_decision"] == "ready_for_pr"
+    assert data["status"] == "ready_for_merge"
+    assert data["final_decision"] == "allowed"
+
+
+def test_evidence_screen_does_not_show_pending_human_review_when_human_review_present(tmp_path, capsys):
+    _full_setup(tmp_path, POLICY_REQUIRE)
+    _plant_required_evidence(tmp_path)
+    capsys.readouterr()
+    _call(tmp_path, plain=False, output_json=False)
+    out = capsys.readouterr().out
+    assert "human_review" in out
+    assert "present" in out
+    assert "approved_with_human_review" in out
+    assert "pending_human_review" not in out
+
+
+def test_evidence_workflow_includes_review_before_evidence(tmp_path, capsys):
+    _full_setup(tmp_path, POLICY_REQUIRE)
+    _plant_required_evidence(tmp_path)
+    capsys.readouterr()
+    _call(tmp_path, plain=False, output_json=False)
+    out = capsys.readouterr().out
+    assert "policy check" in out
+    assert "review" in out
+    assert "evidence" in out
+    policy_pos = out.index("policy check")
+    review_pos = out.index("review", policy_pos)
+    evidence_pos = out.index("evidence", review_pos)
+    assert policy_pos < review_pos < evidence_pos
+
+
+def test_init_scan_plan_policy_review_evidence_flow_remains_green(tmp_path):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    specs = tmp_path / "specs"
+    specs.mkdir(exist_ok=True)
+    spec = specs / "SPEC-AUTH-001.md"
+    spec.write_text(SPEC_AUTH)
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    run_policy_check(
+        diff=False,
+        plain=True,
+        output_json=False,
+        cwd=tmp_path,
+        changed_files_override=["apps/api/src/auth/login.py"],
+        diff_content_override="",
+    )
+    _plant_required_evidence(tmp_path)
+    run_review(
+        issue="SPEC-AUTH-001",
+        reviewer="Marcos",
+        role="Maintainer",
+        approve=True,
+        yes=True,
+        notes=None,
+        plain=True,
+        output_json=False,
+        cwd=tmp_path,
+    )
+    assert _call(tmp_path, issue="SPEC-AUTH-001") == 0
+    data = json.loads((tmp_path / ".devforge" / "evidence" / "EVID-SPEC-AUTH-001.json").read_text())
+    assert data["status"] == "ready_for_merge"
+    assert data["final_decision"] == "approved_with_human_review"
 
 
 # ── output modes ──────────────────────────────────────────────────────────────

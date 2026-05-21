@@ -219,8 +219,11 @@ def test_evidence_recognizes_natural_paths_end_to_end(tmp_path: Path, capsys):
     )
     assert details["human_review"]["status"] == "present"
     assert details["human_review"]["matched_rule"] == "strict"
-    # Spec marks REQUIRE_APPROVAL → exit 1 even when evidences are all present
-    assert rc == 1
+    # REQUIRE_APPROVAL is satisfied when all required evidence, including
+    # human_review, is present.
+    assert rc == 0
+    assert data["status"] == "ready_for_merge"
+    assert data["final_decision"] == "approved_with_human_review"
     # spec is used by linter; touch it
     assert spec.exists()
 

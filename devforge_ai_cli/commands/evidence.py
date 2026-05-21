@@ -66,7 +66,7 @@ def run_evidence(issue: str, plain: bool, output_json: bool, cwd: Path | None = 
             "review_request_present": evidence["review_request_present"],
             "review_request_paths": evidence["review_request_paths"],
             "generated_files": generated_files,
-            "next_step": "Abrir pull request com evidence pack anexado." if evidence["final_decision"] == "ready_for_pr" else "Solicitar revisão humana.",
+            "next_step": _next_step(evidence),
         }))
     elif plain:
         print(f"[DevForge] Evidence Pack gerado: {evidence['evidence_id']}")
@@ -80,6 +80,18 @@ def run_evidence(issue: str, plain: bool, output_json: bool, cwd: Path | None = 
         render_evidence(evidence, generated_files)
 
     return evidence["exit_code"]
+
+
+def _next_step(evidence: dict) -> str:
+    final_decision = evidence["final_decision"]
+    if final_decision in {"allowed", "approved_with_human_review"}:
+        return "Abrir pull request com evidence pack anexado."
+    if final_decision == "pending_human_review":
+        return "Registrar revisão humana com devforge review antes do merge."
+    if final_decision == "pending_required_evidence":
+        missing = ", ".join(evidence.get("missing_evidence", []))
+        return f"Completar evidências obrigatórias ausentes: {missing}."
+    return "Mudança bloqueada pela política. Revisar antes de prosseguir."
 
 
 def _warn(msg: str) -> None:

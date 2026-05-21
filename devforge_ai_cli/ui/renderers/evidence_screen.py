@@ -21,10 +21,14 @@ def _decision_color(decision: str) -> str:
 
 def _status_color(status: str) -> str:
     return {
-        "ready_for_pr": t.GREEN,
-        "ready_for_review": t.AMBER,
+        "ready_for_merge": t.GREEN,
+        "allowed": t.GREEN,
+        "approved_with_human_review": t.GREEN,
+        "waiting_for_human_review": t.AMBER,
         "pending_human_review": t.AMBER,
-        "blocked_missing_evidence": t.RED,
+        "missing_required_evidence": t.RED,
+        "pending_required_evidence": t.RED,
+        "blocked": t.RED,
         "denied": t.RED,
     }.get(status, t.MUTED)
 
@@ -130,16 +134,23 @@ def render_evidence(evidence: dict, generated_files: list[str]) -> None:
         summary_lines.append(f"[{t.GREEN}]- Evidência mínima presente[/{t.GREEN}]")
     if evidence["changed_files"]:
         summary_lines.append(f"[{t.MUTED}]- Mudança rastreável[/{t.MUTED}]")
-    if evidence["human_review_required"]:
-        summary_lines.append(f"[{t.AMBER}]- Pronta para revisão humana[/{t.AMBER}]")
-    else:
+    if evidence["final_decision"] == "approved_with_human_review":
+        summary_lines.append(f"[{t.GREEN}]- Revisão humana aprovada[/{t.GREEN}]")
+    elif evidence["final_decision"] == "pending_human_review":
+        summary_lines.append(f"[{t.AMBER}]- Aguardando revisão humana[/{t.AMBER}]")
+    elif evidence["final_decision"] == "pending_required_evidence":
+        summary_lines.append(f"[{t.RED}]- Aguardando evidências obrigatórias[/{t.RED}]")
+    elif evidence["final_decision"] == "allowed":
         summary_lines.append(f"[{t.GREEN}]- Pronta para PR[/{t.GREEN}]")
+    else:
+        summary_lines.append(f"[{t.RED}]- Bloqueada pela política[/{t.RED}]")
 
     workflow = (
         f"[{t.MUTED}]init[/{t.MUTED}] [{t.CYAN}]→[/{t.CYAN}] "
         f"[{t.MUTED}]scan[/{t.MUTED}] [{t.CYAN}]→[/{t.CYAN}] "
         f"[{t.MUTED}]plan[/{t.MUTED}] [{t.CYAN}]→[/{t.CYAN}] "
         f"[{t.MUTED}]policy check[/{t.MUTED}] [{t.CYAN}]→[/{t.CYAN}] "
+        f"[{t.MUTED}]review[/{t.MUTED}] [{t.CYAN}]→[/{t.CYAN}] "
         f"[bold {t.CYAN}]evidence[/bold {t.CYAN}]"
     )
 

@@ -56,11 +56,11 @@ def write_evidence_pack(evidence: dict, base: Path) -> list[str]:
     )
 
     final_decision = evidence["final_decision"]
-    if final_decision == "ready_for_pr":
-        recommended = "Abrir pull request. Todas as evidências presentes."
+    if final_decision in {"allowed", "approved_with_human_review"}:
+        recommended = "Abrir pull request. Todas as evidências obrigatórias estão presentes."
     elif final_decision == "pending_human_review":
         recommended = "Solicitar revisão humana antes do merge."
-    elif final_decision == "blocked_missing_evidence":
+    elif final_decision == "pending_required_evidence":
         missing = ", ".join(evidence.get("missing_evidence", []))
         recommended = f"Completar evidências ausentes: {missing}."
     else:
