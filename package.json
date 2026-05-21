@@ -1,0 +1,19 @@
+{
+  "name": "devforge-cli-landing",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Landing page estática do DevForge CLI, fiel à imagem de referência.",
+  "scripts": {
+    "dev": "python -m http.server 3000",
+    "start": "python -m http.server 3000"
+  },
+  "keywords": [
+    "devforge",
+    "cli",
+    "landing-page",
+    "local-first",
+    "sdlc",
+    "ia"
+  ],
+  "license": "MIT"
+}

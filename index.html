@@ -1,0 +1,424 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>DevForge CLI — Governança local-first para SDLC com IA</title>
+  <meta name="description" content="DevForge CLI: governe seu SDLC com IA, scan, plan, policy check e evidence pack — tudo local-first." />
+  <meta name="theme-color" content="#06101a" />
+  <link rel="icon" href="./assets/devforge-logo.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <div class="page-shell">
+    <div class="ambient ambient-a"></div>
+    <div class="ambient ambient-b"></div>
+    <div class="grid-noise"></div>
+    <div class="corner-dots" aria-hidden="true"></div>
+
+    <header class="topbar">
+      <a class="brand" href="#top" aria-label="DevForge CLI">
+        <img src="./assets/devforge-logo.svg" alt="" class="brand-mark" />
+        <span>DevForge <strong>CLI</strong></span>
+      </a>
+
+      <nav class="main-nav" aria-label="Navegação principal">
+        <a href="#recursos">Recursos</a>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#github">GitHub</a>
+        <a href="#readme">README</a>
+      </nav>
+
+      <div class="locale" aria-label="Idioma">
+        <button type="button">EN</button>
+        <span aria-hidden="true">|</span>
+        <button type="button" class="active">PT-BR</button>
+      </div>
+    </header>
+
+    <main id="top">
+      <section class="hero frame">
+        <span class="frame-corner frame-corner-tl"></span>
+        <span class="frame-corner frame-corner-bl"></span>
+        <span class="frame-corner frame-corner-tr"></span>
+        <span class="frame-corner frame-corner-br"></span>
+
+        <div class="hero-copy">
+          <h1>Governança local-first<br />para <span>SDLC com IA.</span></h1>
+          <p class="subtitle">Do scan à evidência antes do merge.</p>
+          <p class="lead">
+            Classifique risco, controle contexto, aplique política
+            e gere evidências auditáveis — tudo local, sem cloud
+            login, pronto para o merge.
+          </p>
+
+          <div class="install-pill">
+            <code>$ pipx install devforge-cli</code>
+            <button class="copy-btn" data-copy="pipx install devforge-cli" aria-label="Copiar comando de instalação">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h10v12H8z"/><path d="M6 16H4V4h12v2"/></svg>
+            </button>
+          </div>
+
+          <a class="github-link" href="#github">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .9a11.1 11.1 0 0 0-3.5 21.6c.55.1.75-.24.75-.53v-2c-3.07.67-3.72-1.31-3.72-1.31-.5-1.28-1.23-1.62-1.23-1.62-1-.68.08-.67.08-.67 1.1.08 1.7 1.14 1.7 1.14.98 1.68 2.58 1.2 3.2.92.1-.72.39-1.2.7-1.48-2.45-.28-5.03-1.22-5.03-5.46 0-1.2.43-2.2 1.14-2.98-.12-.28-.5-1.42.1-2.94 0 0 .94-.3 3.06 1.13.89-.25 1.84-.37 2.78-.37.95 0 1.9.12 2.8.37 2.1-1.43 3.04-1.13 3.04-1.13.6 1.52.22 2.66.1 2.94.72.78 1.14 1.77 1.14 2.98 0 4.25-2.58 5.18-5.04 5.45.4.35.75 1.03.75 2.08v3.08c0 .3.2.64.76.53A11.1 11.1 0 0 0 12 .9Z"/></svg>
+            Open source no GitHub
+          </a>
+        </div>
+
+        <div class="hero-terminal">
+          <article class="terminal big-terminal" aria-label="Terminal DevForge CLI">
+            <header>
+              <span class="dot red"></span>
+              <span class="dot amber"></span>
+              <span class="dot green"></span>
+              <p>devforge@localhost: ~/projeto</p>
+            </header>
+            <pre><code><span class="prompt">$</span> devforge init
+<span class="cyan">[DevForge]</span> Bem-vindo ao setup inicial
+
+<span class="ok">✓</span> Projeto detectado: <span class="accent">scala-facil</span>
+<span class="ask">?</span> Criar estrutura .devforge/ neste repositório?  <span class="yes">Yes</span>
+<span class="ask">?</span> Modo padrão:                           <span class="warn">community</span>
+<span class="ask">?</span> Ativar trilha de auditoria local (audit.ndjson)? <span class="yes">Yes</span>
+<span class="ask">?</span> Formato de saída padrão:              <span class="warn">Markdown + JSON</span>
+<span class="ask">?</span> Cloud login obrigatório?              <span class="danger">Não</span>
+
+Criando estrutura...
+<span class="tree">.devforge/
+├── config.yml
+├── prcp/
+├── context/
+├── plans/
+├── policy/
+├── evidence/
+└── audit/</span>
+
+<span class="ok">✓</span> Setup concluído
+Próximos passos: <span class="cyan">devforge scan</span>
+<span class="prompt">devforge@localhost:~/projeto$</span> █</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="quick-cards" aria-label="Resumo">
+        <article>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h16v14H4z"/><path d="m9 9 3 3-3 3M13 16h4"/></svg>
+          <strong>5<br />comandos</strong>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4c-2 0-3 1.3-3 3v2c0 1-1 2-2 2 1 0 2 1 2 2v2c0 1.7 1 3 3 3M15 4c2 0 3 1.3 3 3v2c0 1 1 2 2 2-1 0-2 1-2 2v2c0 1.7-1 3-3 3"/></svg>
+          <strong>Markdown<br />+ JSON</strong>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2"/><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M12 14v3"/></svg>
+          <strong>Sem cloud<br />login</strong>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-5"/></svg>
+          <strong>Audit trail<br />local</strong>
+        </article>
+        <article>
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 18a6 6 0 1 1 8 0v3l-4-2-4 2z"/><path d="M12 8v5"/></svg>
+          <strong>Open<br />source</strong>
+        </article>
+      </section>
+
+      <section id="como-funciona" class="panel flow-panel">
+        <h2><span></span>Cinco etapas. Um fluxo governado.<span></span></h2>
+        <div class="flow-grid">
+          <article class="flow-card">
+            <div class="step">1</div>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c4-1 8-4 10-8 2-4 4-6 4-6s-2 0-6 2c-4 2-7 6-8 10Z"/><path d="M5 19 3 21M12 12l-4 4"/></svg>
+            <strong>Init</strong>
+            <p>Inicializa o projeto e a configuração local.</p>
+          </article>
+          <article class="flow-card">
+            <div class="step">2</div>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4M5 5l3 3M16 16l3 3M19 5l-3 3M8 16l-3 3"/></svg>
+            <strong>Scan</strong>
+            <p>Mapeia stack, risco e áreas sensíveis.</p>
+          </article>
+          <article class="flow-card">
+            <div class="step">3</div>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"/><path d="M14 3v5h4M9 14h6M9 18h3M15 14l4-4"/></svg>
+            <strong>Plan</strong>
+            <p>Gera plano de ação com IA.</p>
+          </article>
+          <article class="flow-card">
+            <div class="step">4</div>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-5"/></svg>
+            <strong>Policy Check</strong>
+            <p>Aplica políticas e exige evidências.</p>
+          </article>
+          <article class="flow-card">
+            <div class="step">5</div>
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"/><path d="M14 3v5h4M9 15l2 2 4-5"/></svg>
+            <strong>Evidence</strong>
+            <p>Gera pacotes de evidências auditáveis.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="recursos" class="panel feature-panel">
+        <h2><span></span>O que o DevForge CLI faz<span></span></h2>
+        <div class="feature-grid">
+          <article class="feature-card">
+            <div class="feature-copy">
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="m12 3 8 4-8 4-8-4z"/><path d="m4 12 8 4 8-4M4 17l8 4 8-4"/></svg>
+                PRCP Scan
+              </h3>
+              <p>Detecta stack, risco e integrações externas.</p>
+            </div>
+            <pre><code>Stack detectada:
+- Next.js 15
+- React 19
+- FastAPI
+- PostgreSQL
+- Redis</code></pre>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-copy">
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h7l2 2h9v10a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg>
+                Context Pack
+              </h3>
+              <p>Coleta contexto e metadados do repositório.</p>
+            </div>
+            <pre><code>context/
+├── project.md
+├── arch.md
+├── deps.md
+└── index.json</code></pre>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-copy">
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3 5 6v5c0 4.5 3 7.5 7 10 4-2.5 7-5.5 7-10V6z"/><path d="m9 12 2 2 4-5"/></svg>
+                Policy Gate
+              </h3>
+              <p>Aplica políticas organizacionais antes do merge.</p>
+            </div>
+            <pre><code>Decisão:
+<span class="danger">REQUIRE_APPROVAL</span>
+
+Evidências
+ausentes:
+- human_review</code></pre>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-copy">
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3h9l3 3v15H6z"/><path d="M14 3v5h4M9 15l2 2 4-5"/></svg>
+                Evidence Pack
+              </h3>
+              <p>Gera pacotes de evidências auditáveis.</p>
+            </div>
+            <pre><code>evidence/
+├── ISSUE-AUTH-001
+│   ├── report.md
+│   ├── audit.ndjson
+│   └── diffs/</code></pre>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-copy">
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 10V8a5 5 0 0 1 10 0v2"/><rect x="5" y="10" width="14" height="10" rx="2"/><path d="M12 14v3"/></svg>
+                Local-first
+              </h3>
+              <p>Tudo rodando 100% local, sem cloud login.</p>
+            </div>
+            <pre><code><span class="ok">✓</span> Sem cloud login
+<span class="ok">✓</span> Local filesystem
+<span class="ok">✓</span> Audit trail local</code></pre>
+          </article>
+
+          <article class="feature-card">
+            <div class="feature-copy">
+              <h3>
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v18M5 8h14M6 8l-3 6h6zM18 8l-3 6h6z"/></svg>
+                Auditável
+              </h3>
+              <p>Trilha de auditoria em NDJSON, imutável e clara.</p>
+            </div>
+            <pre><code>{
+  "event": "scan",
+  "ts": "2025-05-16T...",
+  "risk": "standard"
+}</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="panel cli-panel">
+        <h2><span></span>CLI na prática<span></span></h2>
+        <div class="cli-grid">
+          <article class="terminal mini-terminal">
+            <header><span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span><p>devforge init</p></header>
+            <pre><code><span class="prompt">$</span> devforge init
+<span class="cyan">[DevForge]</span> Bem-vindo ao setup inicial
+
+<span class="ok">✓</span> Projeto detectado: <span class="accent">scala-facil</span>
+<span class="ask">?</span> Ativar auditoria local? <span class="yes">Yes</span>
+<span class="ask">?</span> Formato de saída: <span class="warn">Markdown + JSON</span>
+
+Criando estrutura...
+
+<span class="ok">✓</span> Setup concluído
+Próximos passos: <span class="cyan">devforge scan</span>
+<span class="prompt">devforge@localhost:~/projeto$</span> █</code></pre>
+          </article>
+
+          <article class="terminal mini-terminal">
+            <header><span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span><p>devforge scan</p></header>
+            <pre><code><span class="prompt">$</span> devforge scan
+<span class="cyan">[DevForge]</span> Escaneando repositório...
+
+<span class="ok">✓</span> Stack detectada: Next.js 15 / React 19
+<span class="ok">✓</span> CI detectado: GitHub Actions
+<span class="ok">✓</span> Áreas sensíveis encontradas
+
+PRCP baseline: <span class="cyan">Standard</span>
+Elevação por tarefa: <span class="warn">Hardened</span>
+
+Principais sinais:
+- touches_auth: <span class="ok">true</span>
+- sensitive_data_possible: <span class="ok">true</span>
+- external_integration: <span class="ok">true</span>
+- production_impact: <span class="warn">medium</span>
+
+Próximo passo: <span class="cyan">devforge plan</span>
+<span class="prompt">devforge@localhost:~/projeto$</span> █</code></pre>
+          </article>
+
+          <article class="terminal mini-terminal">
+            <header><span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span><p>devforge policy check --diff</p></header>
+            <pre><code><span class="prompt">$</span> devforge policy check --diff
+<span class="cyan">[DevForge]</span> Avaliando mudanças atuais...
+
+<span class="ok">✓</span> Diff analisado: 14 arquivos
+<span class="ok">✓</span> Context Pack carregado
+<span class="ok">✓</span> Policy rules carregadas
+
+Decisão: <span class="danger">REQUIRE_APPROVAL</span>
+Pode avançar agora? <span class="danger">Não ainda</span>
+
+Reasons
+- touches_auth
+- sensitive_data_possible
+- human_review_required
+
+Required evidence
+- test_report
+- human_review
+- rollback_plan
+
+Próximo passo: <span class="cyan">devforge evidence</span>
+<span class="prompt">devforge@localhost:~/projeto$</span> █</code></pre>
+          </article>
+
+          <article class="terminal mini-terminal">
+            <header><span class="dot red"></span><span class="dot amber"></span><span class="dot green"></span><p>devforge evidence --issue ISSUE-AUTH-001</p></header>
+            <pre><code><span class="prompt">$</span> devforge evidence --issue ISSUE-AUTH-001
+<span class="cyan">[DevForge]</span> Montando Evidence Pack...
+
+<span class="ok">✓</span> Issue carregada: ISSUE-AUTH-001
+<span class="ok">✓</span> Diff anexado
+<span class="ok">✓</span> Test report anexado
+<span class="ok">✓</span> Rollback plan anexado
+<span class="ok">✓</span> Audit trail atualizado
+
+Evidence Pack
+id: EVID-ISSUE-AUTH-001
+status: <span class="warn">ready_for_review</span>
+tests_passed: <span class="ok">true</span>
+human_review_required: <span class="ok">true</span>
+final_decision: <span class="warn">pending_human_review</span>
+
+Próximo passo: aguarde revisão humana
+<span class="prompt">devforge@localhost:~/projeto$</span> █</code></pre>
+          </article>
+        </div>
+      </section>
+
+      <section class="install-section" aria-labelledby="install-title">
+        <h2 id="install-title"><span></span>Instale em segundos<span></span></h2>
+        <div class="install-grid">
+          <article class="install-card">
+            <h3>pipx <small>(recomendado)</small></h3>
+            <div class="code-line">
+              <code>$ pipx install devforge-cli</code>
+              <button class="copy-btn" data-copy="pipx install devforge-cli" aria-label="Copiar comando pipx">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h10v12H8z"/><path d="M6 16H4V4h12v2"/></svg>
+              </button>
+            </div>
+            <p>Isolado, seguro e sempre atualizado.</p>
+          </article>
+
+          <article class="install-card">
+            <h3>uv tool</h3>
+            <div class="code-line">
+              <code>$ uv tool install devforge-cli</code>
+              <button class="copy-btn" data-copy="uv tool install devforge-cli" aria-label="Copiar comando uv">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h10v12H8z"/><path d="M6 16H4V4h12v2"/></svg>
+              </button>
+            </div>
+            <p>Rápido e leve com o uv.</p>
+          </article>
+
+          <article class="install-card">
+            <h3>fonte <small>(Git)</small></h3>
+            <div class="code-line">
+              <code>$ git clone https://github.com/devforge-cli/devforge-cli.git</code>
+              <button class="copy-btn" data-copy="git clone https://github.com/devforge-cli/devforge-cli.git" aria-label="Copiar comando git">
+                <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 8h10v12H8z"/><path d="M6 16H4V4h12v2"/></svg>
+              </button>
+            </div>
+            <p>Para quem quer hackear e contribuir.</p>
+          </article>
+        </div>
+      </section>
+
+      <section id="github" class="cta-panel">
+        <div class="holo-logo" aria-hidden="true">
+          <div class="holo-grid"></div>
+          <img src="./assets/devforge-logo.svg" alt="" />
+          <span class="orb"></span>
+        </div>
+        <div class="cta-copy">
+          <h2>Jogue no GitHub. Leia o README. Contribua.</h2>
+          <p>DevForge CLI é open source e feito com a comunidade. Abra issues, envie PRs e ajude a evoluir.</p>
+          <div class="cta-actions">
+            <a class="button primary" href="#" aria-label="Ver no GitHub">
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 .9a11.1 11.1 0 0 0-3.5 21.6c.55.1.75-.24.75-.53v-2c-3.07.67-3.72-1.31-3.72-1.31-.5-1.28-1.23-1.62-1.23-1.62-1-.68.08-.67.08-.67 1.1.08 1.7 1.14 1.7 1.14.98 1.68 2.58 1.2 3.2.92.1-.72.39-1.2.7-1.48-2.45-.28-5.03-1.22-5.03-5.46 0-1.2.43-2.2 1.14-2.98-.12-.28-.5-1.42.1-2.94 0 0 .94-.3 3.06 1.13.89-.25 1.84-.37 2.78-.37.95 0 1.9.12 2.8.37 2.1-1.43 3.04-1.13 3.04-1.13.6 1.52.22 2.66.1 2.94.72.78 1.14 1.77 1.14 2.98 0 4.25-2.58 5.18-5.04 5.45.4.35.75 1.03.75 2.08v3.08c0 .3.2.64.76.53A11.1 11.1 0 0 0 12 .9Z"/></svg>
+              Ver no GitHub
+            </a>
+            <a id="readme" class="button ghost" href="#">Abrir README</a>
+            <a class="button ghost" href="#">Contribuir</a>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a class="footer-brand" href="#top">
+        <img src="./assets/devforge-logo.svg" alt="" />
+        <strong>DevForge <span>CLI</span></strong>
+      </a>
+      <nav aria-label="Rodapé">
+        <a href="#recursos">Recursos</a>
+        <a href="#como-funciona">Como funciona</a>
+        <a href="#github">GitHub</a>
+        <a href="#readme">README</a>
+      </nav>
+      <p>MIT License <span>·</span> GitHub Pages <span>·</span> Community Edition</p>
+    </footer>
+  </div>
+
+  <script src="./script.js"></script>
+</body>
+</html>
