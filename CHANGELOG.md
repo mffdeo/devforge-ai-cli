@@ -2,6 +2,14 @@
 
 All notable changes to this project will be documented in this file.
 
+## 0.1.1 - Scan heuristics patch
+
+### Fixed
+
+- `devforge scan` now detects database signals from files such as `db_create.py`, `database.py`, `schema.sql`, `migrations/`, `*.db`, `*.sqlite`, and content such as `sqlite3`, `CREATE TABLE`, `ALTER TABLE`, and `DROP TABLE`.
+- `devforge scan` no longer suggests `devforge plan --spec specs/auth.md` by default for generic projects.
+- Scan next-step suggestion now uses the first existing SPEC in `specs/`, or falls back to `specs/SPEC-EXAMPLE-001.md`.
+
 ## [0.1.0] - 2026-05-21
 
 ### Added

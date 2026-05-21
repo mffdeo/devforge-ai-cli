@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "devforge-ai-cli"
-version = "0.1.0"
+version = "0.1.1"
 description = "Local-first governance CLI for AI-assisted SDLC: risk classification, context packs, policy gates and evidence packages before merge."
 readme = "README.md"
 license = { text = "MIT" }

@@ -35,8 +35,12 @@ devforge scan [--plain] [--json]
 
 **Detecta:**
 - Stack: Node.js, TypeScript, Python, FastAPI, Django, Docker, CI (GitHub Actions, GitLab CI...)
-- Áreas sensíveis: auth, login, permissions, JWT, migrations, dados pessoais, pagamentos
+- Áreas sensíveis: auth, login, permissions, JWT, migrations, dados pessoais, pagamentos, database, sqlite, schema
+- Bancos por arquivo/conteúdo: `db_create.py`, `db.py`, `database.py`, `models.py`, `schema.sql`, `migrations/`, `alembic/`, `*.sqlite`, `*.sqlite3`, `*.db`, e padrões como `sqlite3`, `SQLAlchemy`, `CREATE TABLE`, `ALTER TABLE`, `DROP TABLE`, `db.create_all`
 - Sinais: `touches_auth`, `personal_data_possible`, `has_database`, `has_ci`...
+
+**Próximo passo sugerido:**
+- Primeira `.md` em `specs/` em ordem alfabética; preferência por uma SPEC com `AUTH` no nome se o projeto tiver sinais de auth/login/permissions. Fallback: `specs/SPEC-EXAMPLE-001.md`.
 
 **Gera:**
 - `.devforge/prcp/project-profile.json`
