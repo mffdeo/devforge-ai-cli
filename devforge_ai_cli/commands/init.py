@@ -2,6 +2,7 @@ import json
 from pathlib import Path
 
 from devforge_ai_cli.audit.ndjson import append_event
+from devforge_ai_cli.core.agent_instructions import render_agent_instructions
 from devforge_ai_cli.core.config import DevForgeConfig, write_config
 from devforge_ai_cli.core.git import detect_project_name
 from devforge_ai_cli.core.paths import get_audit_file, get_config_file, get_devforge_dir
@@ -32,6 +33,8 @@ def run_init(plain: bool, output_json: bool, cwd: Path | None = None) -> None:
 
     config = DevForgeConfig(project_name=project_name)
     write_config(get_config_file(base), config)
+
+    render_agent_instructions(base)
 
     append_event(get_audit_file(base), {
         "event": "init",

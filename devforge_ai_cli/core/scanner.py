@@ -3,12 +3,8 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
 
+from devforge_ai_cli.core.ignore import should_ignore_path
 from devforge_ai_cli.core.paths import get_devforge_dir
-
-_SKIP_DIRS = {
-    ".devforge", ".git", "node_modules", "__pycache__",
-    ".venv", "venv", ".next", "dist", "build", ".cache",
-}
 
 _SENSITIVE_KEYWORDS = [
     "auth", "login", "logout", "permission", "permissions",
@@ -165,7 +161,7 @@ def _detect_database_signals(base: Path) -> tuple[list[str], set[str]]:
     saw_schema = False
 
     for path in base.rglob("*"):
-        if any(skip in path.parts for skip in _SKIP_DIRS):
+        if should_ignore_path(path.relative_to(base), excluded_suffixes=set()):
             continue
 
         name = path.name.lower()
@@ -218,7 +214,7 @@ def _detect_sensitive_areas(base: Path) -> list[str]:
     found: set[str] = set()
 
     for path in base.rglob("*"):
-        if any(skip in path.parts for skip in _SKIP_DIRS):
+        if should_ignore_path(path.relative_to(base), excluded_suffixes=set()):
             continue
 
         name = path.name.lower()

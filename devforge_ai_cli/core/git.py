@@ -1,6 +1,8 @@
 import subprocess
 from pathlib import Path
 
+from devforge_ai_cli.core.ignore import should_ignore_path
+
 
 def detect_project_name(cwd: Path | None = None) -> str:
     base = cwd or Path.cwd()
@@ -72,7 +74,8 @@ def get_changed_files(cwd: Path | None = None) -> list[str]:
     except (subprocess.SubprocessError, FileNotFoundError):
         pass
 
-    return list(dict.fromkeys(files))
+    deduped = list(dict.fromkeys(files))
+    return [f for f in deduped if not should_ignore_path(f)]
 
 
 def get_diff_content(cwd: Path | None = None, max_bytes: int = 50_000) -> str:

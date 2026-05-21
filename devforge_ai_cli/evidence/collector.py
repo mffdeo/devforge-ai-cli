@@ -1,7 +1,17 @@
 import subprocess
 from pathlib import Path
 
+from devforge_ai_cli.core.ignore import should_ignore_path
 from devforge_ai_cli.core.paths import get_devforge_dir
+
+
+def _first_rglob(base: Path, pattern: str) -> bool:
+    """rglob but skipping ignored dirs (.venv, .git, .devforge, caches...)."""
+    for p in base.rglob(pattern):
+        rel = p.relative_to(base) if p.is_absolute() else p
+        if not should_ignore_path(rel):
+            return True
+    return False
 
 
 def _check_test_report(base: Path, devforge_dir: Path) -> str:
@@ -13,7 +23,7 @@ def _check_test_report(base: Path, devforge_dir: Path) -> str:
         if d.exists() and any(d.glob("test-report*")):
             return "present"
     for pattern in ["pytest*.xml", "coverage.xml", "junit.xml", "test-report.md"]:
-        if list(base.rglob(pattern))[:1]:
+        if _first_rglob(base, pattern):
             return "present"
     return "missing"
 
@@ -32,7 +42,7 @@ def _check_rollback_plan(base: Path, devforge_dir: Path) -> str:
         if d.exists() and any(d.glob("rollback*")):
             return "present"
     for pattern in ["ROLLBACK*.md", "rollback*.md"]:
-        if list(base.rglob(pattern))[:1]:
+        if _first_rglob(base, pattern):
             return "present"
     return "missing"
 

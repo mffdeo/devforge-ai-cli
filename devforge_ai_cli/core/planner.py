@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from devforge_ai_cli.core.agent_instructions import render_agent_instructions
 from devforge_ai_cli.core.paths import TEMPLATES_DIR, get_devforge_dir
 from devforge_ai_cli.policy_engine.decisions import PolicyDecision
 
@@ -324,6 +325,19 @@ def _write_plan_files(base: Path, result: PlanResult) -> list[str]:
         encoding="utf-8",
     )
     generated.append(str(pol_path.relative_to(base)))
+
+    agent_path = render_agent_instructions(
+        base,
+        spec_id=result.spec_id,
+        plan_id=result.plan_id,
+        policy_decision=result.policy_decision,
+        prcp_level=result.prcp_level,
+        allowed_uses=result.allowed_uses,
+        blocked_uses=result.blocked_uses,
+        required_evidence=result.required_evidence,
+        recommended_scope=[t["description"] for t in result.tasks],
+    )
+    generated.append(str(agent_path.relative_to(base)))
 
     return generated
 

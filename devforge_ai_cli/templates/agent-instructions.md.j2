@@ -1,0 +1,110 @@
+# DevForge Agent Instructions
+
+This project uses DevForge CLI governance.
+
+## Purpose
+
+These instructions guide AI coding agents working inside this repository.
+
+The goal is to keep implementation focused on the current SPEC and Plan Pack, while avoiding virtual environments, caches, local databases and generated governance artifacts as source context.
+
+## Allowed context
+
+Agents may read:
+
+- `specs/`
+- `.devforge/plans/`
+- `.devforge/context/`
+- `.devforge/policy/`
+- application source files
+- `tests/`
+- `templates/`
+- `README.md`
+- `docs/` relevant to the current SPEC
+
+## Do not scan or use as source context
+
+Agents must not scan, summarize, modify, or use as source context:
+
+- `.venv/`
+- `venv/`
+- `env/`
+- `.git/`
+- `node_modules/`
+- `__pycache__/`
+- `.pytest_cache/`
+- `.mypy_cache/`
+- `.ruff_cache/`
+- `.devforge/audit/`
+- `.devforge/evidence/`
+- `.devforge/prcp/`
+- `*.db`
+- `*.sqlite`
+- `*.sqlite3`
+- local database files
+- binary files
+- cache files
+
+## Execution exception
+
+Agents may execute tools from `.venv/bin/` only to run tests or validation commands.
+
+Examples allowed:
+
+```bash
+.venv/bin/python -m py_compile app.py db_create.py
+.venv/bin/python app.py
+```
+
+But agents must not inspect `.venv/` as project source code.
+
+## DevForge artifacts
+
+Agents may read:
+
+- `.devforge/plans/`
+- `.devforge/context/`
+- `.devforge/policy/`
+
+Agents must not treat these as application code:
+
+- `.devforge/audit/`
+- `.devforge/evidence/`
+- `.devforge/prcp/`
+
+## Implementation scope
+
+Agents should modify only files required by the current SPEC and Plan Pack.
+
+For generated evidence, agents may create:
+
+- `docs/rollback/`
+- `.devforge/test-reports/`
+- `.devforge/reviews/`
+
+Application changes should stay limited to the files required by the SPEC.
+
+{% if spec_id %}
+## Current SPEC context
+
+- **spec_id:** `{{ spec_id }}`
+- **plan_id:** `{{ plan_id }}`
+- **policy_decision:** `{{ policy_decision }}`
+- **PRCP level:** `{{ prcp_level }}`
+
+### Allowed uses
+
+{% for use in allowed_uses %}- {{ use }}
+{% endfor %}
+### Blocked uses
+
+{% for use in blocked_uses %}- {{ use }}
+{% endfor %}
+### Required evidence
+
+{% for ev in required_evidence %}- {{ ev }}
+{% endfor %}{% if recommended_scope %}
+### Recommended implementation scope
+
+{% for item in recommended_scope %}- {{ item }}
+{% endfor %}{% endif %}{% endif %}

@@ -4,6 +4,7 @@ from pathlib import Path
 
 from devforge_ai_cli.audit.ndjson import append_event
 from devforge_ai_cli.core.git import get_changed_files, get_diff_content
+from devforge_ai_cli.core.ignore import should_ignore_path
 from devforge_ai_cli.core.paths import get_audit_file, get_devforge_dir
 from devforge_ai_cli.core.project import require_init
 from devforge_ai_cli.policy_engine.engine import evaluate_policy
@@ -15,11 +16,18 @@ def _check_evidence_status(required_evidence: list[str], devforge_dir: Path) -> 
         if ev == "test_report":
             evidence_dir = devforge_dir / "evidence"
             reports_dir = devforge_dir / "test-reports"
+            base = devforge_dir.parent
             present = (
                 reports_dir.exists()
                 or (evidence_dir.exists() and any(evidence_dir.glob("test-report*")))
-                or bool(list(devforge_dir.parent.rglob("pytest*.xml"))[:1])
-                or bool(list(devforge_dir.parent.rglob("coverage.xml"))[:1])
+                or any(
+                    not should_ignore_path(p.relative_to(base))
+                    for p in base.rglob("pytest*.xml")
+                )
+                or any(
+                    not should_ignore_path(p.relative_to(base))
+                    for p in base.rglob("coverage.xml")
+                )
             )
         elif ev == "human_review":
             reviews_dir = devforge_dir / "reviews"
@@ -76,7 +84,7 @@ def run_policy_check(
 
     # git diff
     if changed_files_override is not None:
-        changed_files = changed_files_override
+        changed_files = [f for f in changed_files_override if not should_ignore_path(f)]
         diff_content = diff_content_override or ""
     elif diff:
         changed_files = get_changed_files(base)
