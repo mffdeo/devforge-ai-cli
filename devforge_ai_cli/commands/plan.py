@@ -43,7 +43,13 @@ def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None)
         "prcp_level": result.prcp_level,
         "required_evidence": result.required_evidence,
         "generated_files": result.generated_files,
+        "implementation_brief_path": result.implementation_brief_path,
     })
+
+    agent_prompt = (
+        f'Implemente a feature usando o briefing em '
+        f'{result.implementation_brief_path}'
+    )
 
     if output_json:
         print(json.dumps({
@@ -57,6 +63,8 @@ def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None)
             "blocked_uses": result.blocked_uses,
             "required_evidence": result.required_evidence,
             "generated_files": result.generated_files,
+            "implementation_brief_path": result.implementation_brief_path,
+            "agent_prompt": agent_prompt,
             "next_step": "devforge policy check --diff",
         }))
     elif plain:
@@ -69,7 +77,11 @@ def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None)
         print(f"Evidências: {', '.join(result.required_evidence)}")
         for f in result.generated_files:
             print(f"  {f}")
-        print("Próximo passo: devforge policy check --diff")
+        print()
+        print("Próximo passo: peça ao seu agente de IA:")
+        print(f'  "{agent_prompt}"')
+        print()
+        print("Depois rode: devforge policy check --diff")
     else:
         from devforge_ai_cli.ui.renderers.plan_screen import render_plan
         render_plan(result)

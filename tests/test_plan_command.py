@@ -337,6 +337,77 @@ def test_plan_priority_spec_end_to_end_with_auth_profile(tmp_path):
         assert required in plan_lower, f"task de priority faltando no PLAN.md: {required!r}"
 
 
+def test_plan_generates_implementation_brief(tmp_path):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    brief = tmp_path / ".devforge" / "context" / "implementation-brief-SPEC-PRIORITY-001.md"
+    assert brief.exists()
+
+
+def test_implementation_brief_contains_spec_id(tmp_path):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    brief = (tmp_path / ".devforge" / "context" / "implementation-brief-SPEC-PRIORITY-001.md").read_text()
+    assert "SPEC-PRIORITY-001" in brief
+
+
+def test_implementation_brief_references_plan_context_agent_policy(tmp_path):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    brief = (tmp_path / ".devforge" / "context" / "implementation-brief-SPEC-PRIORITY-001.md").read_text()
+    assert ".devforge/plans/PLAN-SPEC-PRIORITY-001.md" in brief
+    assert ".devforge/context/context-pack.md" in brief
+    assert ".devforge/context/agent-instructions.md" in brief
+    assert ".devforge/policy/POLICY-DECISION-SPEC-PRIORITY-001.json" in brief
+
+
+def test_implementation_brief_contains_user_prompt(tmp_path):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    brief = (tmp_path / ".devforge" / "context" / "implementation-brief-SPEC-PRIORITY-001.md").read_text()
+    assert "Implemente a feature usando o briefing em" in brief
+    assert "implementation-brief-SPEC-PRIORITY-001.md" in brief
+
+
+def test_implementation_brief_includes_objective_acceptance_and_risks(tmp_path):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    brief = (tmp_path / ".devforge" / "context" / "implementation-brief-SPEC-PRIORITY-001.md").read_text()
+    assert "Adicionar prioridade às tarefas" in brief
+    assert "Toda tarefa tem um campo prioridade" in brief
+    assert "Toca o schema SQLite" in brief
+
+
+def test_plan_json_exposes_implementation_brief_path(tmp_path, capsys):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    capsys.readouterr()
+    run_plan(spec=str(spec), plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    assert "implementation_brief_path" in data
+    assert data["implementation_brief_path"].endswith("implementation-brief-SPEC-PRIORITY-001.md")
+    assert "agent_prompt" in data
+    assert "implementation-brief-SPEC-PRIORITY-001.md" in data["agent_prompt"]
+
+
+def test_plan_audit_event_includes_implementation_brief_path(tmp_path):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    audit = tmp_path / ".devforge" / "audit" / "audit.ndjson"
+    events = [json.loads(line) for line in audit.read_text().splitlines()]
+    plan_events = [e for e in events if e["event"] == "plan.generated"]
+    assert plan_events
+    assert plan_events[-1]["implementation_brief_path"].endswith(
+        "implementation-brief-SPEC-PRIORITY-001.md"
+    )
+
+
 def test_plan_priority_spec_end_to_end(tmp_path):
     """Run the actual command and inspect generated artifacts."""
     _init_and_scan(tmp_path)

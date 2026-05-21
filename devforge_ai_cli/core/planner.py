@@ -179,6 +179,7 @@ class PlanResult:
     required_evidence: list[str]
     generated_files: list[str] = field(default_factory=list)
     generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    implementation_brief_path: str = ""
 
 
 def _task_prefix(spec_id: str) -> str:
@@ -339,7 +340,112 @@ def _write_plan_files(base: Path, result: PlanResult) -> list[str]:
     )
     generated.append(str(agent_path.relative_to(base)))
 
+    brief_path = _write_implementation_brief(base, env, result)
+    generated.append(str(brief_path.relative_to(base)))
+    result.implementation_brief_path = str(brief_path.relative_to(base))
+
     return generated
+
+
+def _extract_objective(sections: dict) -> str:
+    for key in ("objetivo", "objective", "goal"):
+        if sections.get(key):
+            return sections[key].strip()
+    return ""
+
+
+def _extract_bulleted(sections: dict, keys: tuple[str, ...]) -> list[str]:
+    """Pull bullet items (lines starting with - or *) from the first
+    matching section. Falls back to non-empty stripped lines."""
+    for key in keys:
+        body = sections.get(key)
+        if not body:
+            continue
+        items: list[str] = []
+        for line in body.splitlines():
+            stripped = line.strip()
+            if not stripped:
+                continue
+            if stripped.startswith(("-", "*", "•")):
+                items.append(stripped.lstrip("-*• ").strip())
+            else:
+                items.append(stripped)
+        return [i for i in items if i]
+    return []
+
+
+def _compute_in_scope(spec_data: dict, profile: dict, base: Path) -> list[str]:
+    """Best-effort guess of in-scope paths based on the project and SPEC.
+
+    Always-allowed: docs/rollback/, .devforge/test-reports/, .devforge/reviews/
+    (where the agent may drop generated evidence).
+
+    Project hints: include common application files that exist (app.py,
+    db_create.py, models.py, templates/) and the SPEC file itself.
+    """
+    candidates: list[str] = []
+    for name in ("app.py", "db_create.py", "database.py", "models.py", "main.py"):
+        if (base / name).exists():
+            candidates.append(name)
+    for name in ("templates", "static", "src", "lib"):
+        if (base / name).is_dir():
+            candidates.append(f"{name}/")
+    # SPEC itself
+    spec_rel = spec_data.get("relpath")
+    if spec_rel:
+        candidates.append(spec_rel)
+    candidates.extend([
+        "docs/rollback/",
+        ".devforge/test-reports/",
+        ".devforge/reviews/",
+    ])
+    # de-dup preserving order
+    seen: set[str] = set()
+    return [c for c in candidates if not (c in seen or seen.add(c))]
+
+
+def _write_implementation_brief(base: Path, env, result: PlanResult) -> Path:
+    devforge_dir = get_devforge_dir(base)
+    brief_path = devforge_dir / "context" / f"implementation-brief-{result.spec_id}.md"
+
+    spec_data = result._spec_data  # set by generate_plan, see below
+    profile = result._profile or {}
+
+    sections = spec_data.get("sections") or {}
+    objective = _extract_objective(sections)
+    acceptance_criteria = _extract_bulleted(sections, ("critérios de aceite", "criterios de aceite", "acceptance criteria"))
+    risks = _extract_bulleted(sections, ("riscos", "risks"))
+
+    spec_path_abs = Path(result.spec_path)
+    try:
+        spec_relpath = str(spec_path_abs.relative_to(base))
+    except ValueError:
+        spec_relpath = result.spec_path
+
+    in_scope = _compute_in_scope({**spec_data, "relpath": spec_relpath}, profile, base)
+
+    compile_targets = " ".join(
+        p for p in in_scope if p.endswith(".py")
+    ) or "app.py"
+
+    tmpl = env.get_template("implementation-brief.md.j2")
+    brief_path.write_text(
+        tmpl.render(
+            spec_id=result.spec_id,
+            spec_title=result.spec_title,
+            spec_relpath=spec_relpath,
+            plan_id=result.plan_id,
+            objective=objective,
+            acceptance_criteria=acceptance_criteria,
+            risks=risks,
+            tasks=result.tasks,
+            in_scope=in_scope,
+            compile_targets=compile_targets,
+            required_evidence=result.required_evidence,
+        ),
+        encoding="utf-8",
+    )
+    return brief_path
 
 
 def generate_plan(spec_path: Path, base: Path) -> PlanResult:
@@ -369,5 +475,9 @@ def generate_plan(spec_path: Path, base: Path) -> PlanResult:
         blocked_uses=BLOCKED_USES,
         required_evidence=required_evidence,
     )
+    # Attach the parsed SPEC and scan profile so _write_implementation_brief
+    # can pull objective/acceptance/risks without re-parsing.
+    result._spec_data = spec_data  # type: ignore[attr-defined]
+    result._profile = profile  # type: ignore[attr-defined]
     result.generated_files = _write_plan_files(base, result)
     return result

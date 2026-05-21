@@ -1,0 +1,66 @@
+# DevForge Implementation Brief — {{ spec_id }}
+
+> Implement the current SPEC using this briefing as the source of truth.
+
+## References
+
+- `{{ spec_relpath }}`
+- `.devforge/plans/{{ plan_id }}.md`
+- `.devforge/context/context-pack.md`
+- `.devforge/context/agent-instructions.md`
+- `.devforge/policy/POLICY-DECISION-{{ spec_id }}.json`
+
+## SPEC summary
+
+- **spec_id:** `{{ spec_id }}`
+- **title:** {{ spec_title }}
+
+### Objective
+
+{{ objective or "_(não declarado na SPEC)_" }}
+
+### Acceptance criteria
+
+{% if acceptance_criteria %}{% for ac in acceptance_criteria %}- {{ ac }}
+{% endfor %}{% else %}_(nenhum critério explícito na SPEC)_
+{% endif %}
+### Risks
+
+{% if risks %}{% for r in risks %}- {{ r }}
+{% endfor %}{% else %}_(nenhum risco declarado na SPEC)_
+{% endif %}
+## Recommended plan
+
+{% for task in tasks %}- **{{ task.id }}** — {{ task.description }}
+{% endfor %}
+## In-scope files and folders
+
+The agent may modify, within the limits of the SPEC and Plan Pack:
+
+{% for path in in_scope %}- `{{ path }}`
+{% endfor %}
+## Out of scope
+
+- não adicionar login
+- não adicionar autenticação
+- não adicionar cloud
+- não alterar escopo não pedido
+- não varrer `.venv/`
+- não tratar `.devforge/audit/`, `.devforge/evidence/` ou `.devforge/prcp/` como código de aplicação
+
+## Suggested validations
+
+```bash
+python -m py_compile {{ compile_targets }}
+# Se houver venv local:
+.venv/bin/python -m py_compile {{ compile_targets }}
+# Rodar a aplicação localmente, se possível, e validar manualmente os critérios de aceite.
+```
+
+## Expected evidence
+
+{% for ev in required_evidence %}- `{{ ev }}`
+{% endfor %}
+## Prompt para copiar e colar no seu agente de IA
+
+> Implemente a feature usando o briefing em `.devforge/context/implementation-brief-{{ spec_id }}.md`

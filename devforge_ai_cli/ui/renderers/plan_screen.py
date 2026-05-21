@@ -135,7 +135,14 @@ def render_plan(result: PlanResult) -> None:
         _files_table(result.generated_files),
         Text(""),
         Text.from_markup(
-            f"[{t.MUTED}]Próximo passo:[/{t.MUTED}] "
+            f"[{t.MUTED}]Próximo passo — peça ao seu agente de IA:[/{t.MUTED}]"
+        ),
+        Text.from_markup(
+            f'[bold {t.CYAN}]"Implemente a feature usando o briefing em '
+            f'{result.implementation_brief_path}"[/bold {t.CYAN}]'
+        ),
+        Text.from_markup(
+            f"[{t.MUTED}]Depois rode:[/{t.MUTED}] "
             f"[bold {t.CYAN}]devforge policy check --diff[/bold {t.CYAN}]"
         ),
     )
