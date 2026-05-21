@@ -140,6 +140,7 @@ svg {
   width: 168px;
   height: 72px;
   opacity: .52;
+  pointer-events: none;
   background-image: radial-gradient(circle, rgba(0, 221, 255, .8) 1px, transparent 1.5px);
   background-size: 20px 20px;
 }
