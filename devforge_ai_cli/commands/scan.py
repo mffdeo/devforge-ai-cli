@@ -36,10 +36,11 @@ def run_scan_cmd(plain: bool, output_json: bool, cwd: Path | None = None) -> Non
             "baseline_level": result.baseline_level,
             "task_elevation": result.task_elevation,
             "generated_files": result.generated_files,
+            "suggested_next_spec": result.suggested_next_spec,
             "next_steps": [
                 "Revisar paths sensíveis",
                 "Confirmar baseline PRCP",
-                "devforge plan --spec specs/auth.md",
+                f"devforge plan --spec {result.suggested_next_spec}",
             ],
         }))
     elif plain:
@@ -51,6 +52,7 @@ def run_scan_cmd(plain: bool, output_json: bool, cwd: Path | None = None) -> Non
         print(f"[DevForge] Elevação por tarefa: {result.task_elevation}")
         for f in result.generated_files:
             print(f"  {f}")
+        print(f"[DevForge] Próximo: devforge plan --spec {result.suggested_next_spec}")
     else:
         from devforge_ai_cli.ui.renderers.scan_screen import render_scan
         render_scan(result)

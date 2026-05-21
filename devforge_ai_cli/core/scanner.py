@@ -62,6 +62,7 @@ class ScanResult:
     task_elevation: str = "Standard"
     scanned_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     generated_files: list[str] = field(default_factory=list)
+    suggested_next_spec: str = "specs/SPEC-EXAMPLE-001.md"
 
 
 def _detect_stack(base: Path) -> tuple[list[str], str | None, list[str]]:
@@ -352,6 +353,35 @@ def _write_scan_files(base: Path, result: ScanResult) -> list[str]:
     ]
 
 
+_AUTH_AREA_TAGS = {"auth", "login", "logout", "permission", "permissions", "rbac", "role", "roles"}
+_DEFAULT_SUGGESTED_SPEC = "specs/SPEC-EXAMPLE-001.md"
+
+
+def _suggest_next_spec(base: Path, sensitive_areas: list[str]) -> str:
+    """Pick the SPEC file to suggest in scan output.
+
+    Order of preference:
+      1. If sensitive_areas mention auth/login/permissions AND a SPEC
+         whose filename contains 'AUTH' exists, suggest that one.
+      2. Otherwise, the first *.md inside specs/ in alphabetical order.
+      3. Fallback to specs/SPEC-EXAMPLE-001.md.
+    """
+    specs_dir = base / "specs"
+    if not specs_dir.is_dir():
+        return _DEFAULT_SUGGESTED_SPEC
+
+    md_files = sorted(p for p in specs_dir.glob("*.md") if p.is_file())
+    if not md_files:
+        return _DEFAULT_SUGGESTED_SPEC
+
+    if _AUTH_AREA_TAGS & set(sensitive_areas):
+        for p in md_files:
+            if "auth" in p.name.lower():
+                return f"specs/{p.name}"
+
+    return f"specs/{md_files[0].name}"
+
+
 def run_scan(project_name: str, base: Path) -> ScanResult:
     stack, ci, databases = _detect_stack(base)
     extra_db, extra_db_areas = _detect_database_signals(base)
@@ -371,6 +401,7 @@ def run_scan(project_name: str, base: Path) -> ScanResult:
         signals=signals,
         baseline_level=baseline,
         task_elevation=elevation,
+        suggested_next_spec=_suggest_next_spec(base, sensitive_areas),
     )
     result.generated_files = _write_scan_files(base, result)
     return result

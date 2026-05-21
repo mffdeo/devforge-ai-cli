@@ -194,6 +194,55 @@ def test_scan_json_output(tmp_path, capsys):
     assert "task_elevation" in data
     assert "generated_files" in data
     assert "next_steps" in data
+    assert "suggested_next_spec" in data
+
+
+# ── next-spec suggestion ──────────────────────────────────────────────────────
+
+def test_scan_suggests_example_spec_when_specs_dir_missing(tmp_path):
+    _init(tmp_path)
+    result = run_scan("empty", tmp_path)
+    assert result.suggested_next_spec == "specs/SPEC-EXAMPLE-001.md"
+
+
+def test_scan_suggests_example_spec_when_specs_dir_empty(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "specs").mkdir()
+    result = run_scan("empty-specs", tmp_path)
+    assert result.suggested_next_spec == "specs/SPEC-EXAMPLE-001.md"
+
+
+def test_scan_suggests_first_spec_alphabetically(tmp_path):
+    _init(tmp_path)
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    (specs / "SPEC-PRIORITY-001.md").write_text("# priority")
+    (specs / "SPEC-ZZZ-999.md").write_text("# later")
+    result = run_scan("with-specs", tmp_path)
+    assert result.suggested_next_spec == "specs/SPEC-PRIORITY-001.md"
+
+
+def test_scan_prefers_auth_spec_when_sensitive_areas_match(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "auth.py").write_text("def login(): pass")
+    specs = tmp_path / "specs"
+    specs.mkdir()
+    (specs / "SPEC-AUTH-001.md").write_text("# auth")
+    (specs / "SPEC-DASHBOARD-001.md").write_text("# dash")
+    result = run_scan("auth-project", tmp_path)
+    assert result.suggested_next_spec == "specs/SPEC-AUTH-001.md"
+
+
+def test_scan_does_not_suggest_auth_md_for_generic_project(tmp_path, capsys):
+    _init(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname="todo"\ndependencies = ["flask"]\n'
+    )
+    capsys.readouterr()
+    run_scan_cmd(plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    assert data["suggested_next_spec"] != "specs/auth.md"
+    assert "specs/auth.md" not in " ".join(data["next_steps"])
 
 
 def test_scan_plain_output(tmp_path, capsys):
