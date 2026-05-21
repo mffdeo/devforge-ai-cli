@@ -34,6 +34,19 @@ Antes de uma mudança entrar no repositório principal, o DevForge CLI ajuda a r
 init → scan → plan → policy check → evidence
 ```
 
+![DevForge CLI — fluxo principal](docs/assets/screenshots/how-it-works.png)
+
+> Um único repositório local detém todo o estado de governança.
+> SPEC, plano, contexto, política, evidência e trilha de auditoria
+> ficam dentro do projeto — sem cloud login, saídas em Markdown + JSON,
+> revisão humana quando o risco exige.
+
+O diagrama acima resume a sequência em três blocos:
+
+- **R1 — Author + Workspace.** O autor escreve a `SPEC`, roda `devforge init` e o repositório passa a carregar `.devforge/config.yml` ao lado de IDE, agente e Git.
+- **R2 — Scan + Governance core.** `devforge scan` classifica risco e detecta áreas sensíveis. `devforge plan --spec` produz o **PRCP baseline**, o **Context Pack** e a **Policy Decision** (`ALLOW` / `REQUIRE_APPROVAL`).
+- **R3 — Policy gate + Review.** `devforge policy check --diff` avalia o diff contra a política. `devforge evidence --issue …` emite o **Evidence Pack** auditável (`EVID-…`) que acompanha o PR.
+
 ---
 
 ## Instalação
