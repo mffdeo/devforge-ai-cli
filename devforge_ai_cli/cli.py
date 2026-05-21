@@ -85,4 +85,5 @@ def evidence(
     output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
 ) -> None:
     """Collect and package evidence before a PR."""
-    evidence_cmd.run_evidence(issue=issue, plain=plain, output_json=output_json)
+    exit_code = evidence_cmd.run_evidence(issue=issue, plain=plain, output_json=output_json)
+    raise typer.Exit(code=exit_code)
