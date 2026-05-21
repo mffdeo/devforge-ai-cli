@@ -1,0 +1,18 @@
+<svg width="128" height="128" viewBox="0 0 128 128" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-labelledby="title">
+  <title>DevForge CLI</title>
+  <defs>
+    <linearGradient id="g" x1="23" y1="18" x2="105" y2="112" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#21F2FF"/>
+      <stop offset="1" stop-color="#008CFF"/>
+    </linearGradient>
+    <filter id="glow" x="-40" y="-40" width="208" height="208" filterUnits="userSpaceOnUse" color-interpolation-filters="sRGB">
+      <feGaussianBlur stdDeviation="3.4" result="blur"/>
+      <feColorMatrix in="blur" type="matrix" values="0 0 0 0 0.02 0 0 0 0 0.85 0 0 0 0 1 0 0 0 .65 0"/>
+      <feBlend in2="SourceGraphic" mode="screen"/>
+    </filter>
+  </defs>
+  <path d="M64 8 112 35.7v56.6L64 120 16 92.3V35.7L64 8Z" fill="#061323" stroke="url(#g)" stroke-width="4" filter="url(#glow)"/>
+  <path d="M39 40h42l-8 12H51v11h24L64 78H51v12H38.5V40H39Z" fill="url(#g)"/>
+  <path d="M88 40v20l-12 8V52h-9l8-12h13Z" fill="#22F2FF"/>
+  <path d="M53 78h19l-8 12H45l8-12Z" fill="#00A9F6"/>
+</svg>
