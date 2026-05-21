@@ -7,6 +7,15 @@
   <img src="docs/assets/how-it-works.png" alt="DevForge CLI How It Works" width="100%">
 </p>
 
+<p align="center">
+  <a href="#instalação">Instalação</a> ·
+  <a href="#quickstart">Quickstart</a> ·
+  <a href="#como-funciona">Como funciona</a> ·
+  <a href="#conceitos-principais">Conceitos</a> ·
+  <a href="#roadmap-inicial">Roadmap</a> ·
+  <a href="#contribuindo">Contribuindo</a>
+</p>
+
 ---
 
 ## O que é o DevForge CLI?
@@ -54,18 +63,29 @@ O **DevForge CLI** cria uma camada local e simples de governança para esse flux
 
 ```text
 init → scan → plan → policy check → evidence
+```
+
 Ou, em linguagem prática:
 
+```text
 author SPEC → init repo → scan → plan → implement with agent → policy check → evidence → open PR
-Como funciona
-1. devforge init
+```
+
+---
+
+## Como funciona
+
+### 1. `devforge init`
 
 Inicializa a governança local dentro do repositório.
 
+```bash
 devforge init
+```
 
 Cria a estrutura:
 
+```text
 .devforge/
 ├── config.yml
 ├── prcp/
@@ -74,14 +94,21 @@ Cria a estrutura:
 ├── policy/
 ├── evidence/
 └── audit/
-2. devforge scan
+```
+
+---
+
+### 2. `devforge scan`
 
 Escaneia o repositório para detectar stack, CI, áreas sensíveis e sinais de risco.
 
+```bash
 devforge scan
+```
 
 Exemplo de saída:
 
+```text
 [DevForge] Escaneando repositório...
 
 ✔ Stack detectada: Next.js · React · FastAPI · PostgreSQL
@@ -94,52 +121,68 @@ Elevação por tarefa: Hardened
 Arquivos gerados:
 .devforge/prcp/project-profile.json
 .devforge/prcp/scan-report.md
-3. devforge plan
+```
+
+---
+
+### 3. `devforge plan`
 
 Gera um plano governado a partir de uma SPEC.
 
+```bash
 devforge plan --spec specs/SPEC-AUTH-001.md
+```
 
 Esse comando gera:
 
+```text
 .devforge/plans/PLAN-SPEC-AUTH-001.md
 .devforge/context/context-pack.md
 .devforge/policy/POLICY-DECISION-001.json
+```
 
-O plan não gera código.
+O `plan` **não gera código**.
 
 Ele gera:
 
-tarefas;
-contexto permitido;
-contexto bloqueado;
-política inicial;
-evidências obrigatórias;
-pontos de revisão humana.
-4. Implementação com humano ou agente
+- tarefas;
+- contexto permitido;
+- contexto bloqueado;
+- política inicial;
+- evidências obrigatórias;
+- pontos de revisão humana.
+
+---
+
+### 4. Implementação com humano ou agente
 
 Depois do plano, você implementa a mudança usando sua ferramenta preferida:
 
-Cursor;
-Claude Code;
-Codex;
-Copilot;
-OpenCode;
-agente próprio;
-ou implementação manual.
+- Cursor;
+- Claude Code;
+- Codex;
+- Copilot;
+- OpenCode;
+- agente próprio;
+- ou implementação manual.
 
 O DevForge CLI não compete com essas ferramentas.
 
-Ele entra antes do merge.
+Ele entra **antes do merge**.
 
-5. devforge policy check
+---
+
+### 5. `devforge policy check`
 
 Avalia o diff atual contra as políticas locais.
 
+```bash
 devforge policy check --diff
+```
 
 Exemplo:
 
+```text
 [DevForge] Avaliando mudança atual...
 
 ✔ Diff analisado: 14 arquivos
@@ -160,20 +203,29 @@ Required evidence:
 - rollback_plan
 
 Exit code: 1
+```
 
 Decisões possíveis:
 
+```text
 ALLOW
 DENY
 REQUIRE_APPROVAL
-6. devforge evidence
+```
+
+---
+
+### 6. `devforge evidence`
 
 Gera o pacote de evidência antes do PR ou merge.
 
+```bash
 devforge evidence --issue ISSUE-AUTH-001
+```
 
 Exemplo de saída:
 
+```text
 [DevForge] Montando Evidence Pack...
 
 ✔ Issue carregada: ISSUE-AUTH-001
@@ -192,22 +244,37 @@ final_decision: pending_human_review
 Arquivos gerados:
 .devforge/evidence/EVID-ISSUE-AUTH-001.md
 .devforge/audit/audit.ndjson
-Instalação
+```
 
-O projeto ainda está em fase inicial. Os comandos abaixo representam a instalação planejada para o pacote público.
+---
 
-Com pipx:
+## Instalação
 
+> O projeto ainda está em fase inicial. Os comandos abaixo representam a instalação planejada para o pacote público.
+
+Com `pipx`:
+
+```bash
 pipx install devforge-ai-cli
+```
 
-Com uv:
+Com `uv`:
 
+```bash
 uv tool install devforge-ai-cli
+```
 
 Depois:
 
+```bash
 devforge --version
-Quickstart
+```
+
+---
+
+## Quickstart
+
+```bash
 # 1. Instale a CLI
 pipx install devforge-ai-cli
 
@@ -234,30 +301,35 @@ devforge policy check --diff
 
 # 9. Gere o pacote de evidência
 devforge evidence --issue ISSUE-AUTH-001
-Exemplo de história
+```
 
-Imagine um projeto chamado Plantão Fácil, um sistema para troca de plantões.
+---
+
+## Exemplo de história
+
+Imagine um projeto chamado **Plantão Fácil**, um sistema para troca de plantões.
 
 Você quer implementar:
 
-Login com e-mail/senha e controle básico de papéis: admin, supervisor e operador.
+> Login com e-mail/senha e controle básico de papéis: admin, supervisor e operador.
 
 Essa mudança toca:
 
-autenticação;
-permissões;
-dados pessoais;
-rotas protegidas.
+- autenticação;
+- permissões;
+- dados pessoais;
+- rotas protegidas.
 
-Então o DevForge CLI pode elevar o risco da tarefa para Hardened e exigir:
+Então o DevForge CLI pode elevar o risco da tarefa para `Hardened` e exigir:
 
-relatório de testes;
-plano de rollback;
-revisão humana;
-trilha de auditoria.
+- relatório de testes;
+- plano de rollback;
+- revisão humana;
+- trilha de auditoria.
 
 Fluxo:
 
+```bash
 devforge init
 devforge scan
 devforge plan --spec specs/SPEC-AUTH-001.md
@@ -266,9 +338,11 @@ devforge plan --spec specs/SPEC-AUTH-001.md
 
 devforge policy check --diff
 devforge evidence --issue ISSUE-AUTH-001
+```
 
 No fim, o PR pode carregar um resumo como:
 
+```markdown
 ## DevForge Evidence
 
 - Evidence Pack: `.devforge/evidence/EVID-ISSUE-AUTH-001.md`
@@ -277,7 +351,13 @@ No fim, o PR pode carregar um resumo como:
 - Tests: passed
 - Human Review: required
 - Rollback Plan: present
-Estrutura gerada no projeto
+```
+
+---
+
+## Estrutura gerada no projeto
+
+```text
 .devforge/
 ├── config.yml
 ├── prcp/
@@ -294,29 +374,38 @@ Estrutura gerada no projeto
 │   └── EVID-ISSUE-AUTH-001.json
 └── audit/
     └── audit.ndjson
-Conceitos principais
-PRCP
+```
 
-PRCP significa Project Risk & Complexity Profile.
+---
+
+## Conceitos principais
+
+### PRCP
+
+**PRCP** significa **Project Risk & Complexity Profile**.
 
 É uma forma de classificar o risco proporcional de um projeto ou mudança.
 
 Exemplos de sinais que podem elevar o risco:
 
-autenticação;
-permissões;
-dados pessoais;
-integrações externas;
-impacto em produção;
-mudanças em banco de dados;
-sistemas legados;
-requisitos regulatórios.
-Context Pack
+- autenticação;
+- permissões;
+- dados pessoais;
+- integrações externas;
+- impacto em produção;
+- mudanças em banco de dados;
+- sistemas legados;
+- requisitos regulatórios.
 
-O Context Pack define o que pode ou não pode ser usado como contexto.
+---
+
+### Context Pack
+
+O **Context Pack** define o que pode ou não pode ser usado como contexto.
 
 Exemplo:
 
+```yaml
 allowed_uses:
   - arquitetura
   - testes
@@ -334,45 +423,62 @@ required_evidence:
   - human_review
   - rollback_plan
   - audit_log
-Policy Gate
+```
 
-O Policy Gate avalia se uma mudança pode avançar.
+---
+
+### Policy Gate
+
+O **Policy Gate** avalia se uma mudança pode avançar.
 
 Possíveis decisões:
 
+```text
 ALLOW
 DENY
 REQUIRE_APPROVAL
+```
 
 Exemplo:
 
+```text
 Decision: REQUIRE_APPROVAL
 
 Reasons:
 - touches_auth
 - sensitive_data_possible
 - human_review_required
-Evidence Pack
+```
 
-O Evidence Pack é um pacote auditável que mostra o que foi feito, testado, revisado e aprovado.
+---
+
+### Evidence Pack
+
+O **Evidence Pack** é um pacote auditável que mostra o que foi feito, testado, revisado e aprovado.
 
 Ele pode incluir:
 
-diff;
-test report;
-typecheck;
-rollback plan;
-human review;
-policy decision;
-audit log.
-Audit Trail
+- diff;
+- test report;
+- typecheck;
+- rollback plan;
+- human review;
+- policy decision;
+- audit log.
+
+---
+
+### Audit Trail
 
 O DevForge CLI mantém uma trilha local em NDJSON:
 
+```text
 .devforge/audit/audit.ndjson
+```
 
 Exemplo de evento:
 
+```json
 {
   "event": "policy.check",
   "spec_id": "SPEC-AUTH-001",
@@ -380,101 +486,148 @@ Exemplo de evento:
   "reasons": ["touches_auth", "human_review_required"],
   "timestamp": "2026-05-20T10:30:00Z"
 }
-O que o DevForge CLI não é
+```
 
-O DevForge CLI não é:
+---
 
-uma IDE;
-um agente de código;
-um orquestrador multiagente;
-um substituto para GitHub, GitLab ou Jira;
-um SaaS obrigatório;
-uma ferramenta que chama LLM por padrão;
-uma ferramenta que envia seu código para a nuvem.
+## O que o DevForge CLI não é
+
+O DevForge CLI **não** é:
+
+- uma IDE;
+- um agente de código;
+- um orquestrador multiagente;
+- um substituto para GitHub, GitLab ou Jira;
+- um SaaS obrigatório;
+- uma ferramenta que chama LLM por padrão;
+- uma ferramenta que envia seu código para a nuvem.
 
 No MVP, o foco é:
 
+```text
 local-first
 determinístico
 sem cloud login
 sem telemetria silenciosa
 Markdown + JSON
 auditável
-Roadmap inicial
-MVP Community
- devforge init
- devforge scan
- devforge plan
- devforge policy check
- devforge evidence
- saída Markdown + JSON
- audit trail local em NDJSON
- exemplo Plantão Fácil
- GitHub Pages
- CI com testes
-Depois do MVP
- GitHub Actions integration
- policy packs customizados
- suporte a múltiplos perfis PRCP
- templates de Evidence Pack
- validação de schemas
- integração MCP local
- adapters para agentes e IDEs
- dashboard web opcional
- modo team/enterprise
-Exemplo de comandos
+```
+
+---
+
+## Roadmap inicial
+
+### MVP Community
+
+- [ ] `devforge init`
+- [ ] `devforge scan`
+- [ ] `devforge plan`
+- [ ] `devforge policy check`
+- [ ] `devforge evidence`
+- [ ] saída Markdown + JSON
+- [ ] audit trail local em NDJSON
+- [ ] exemplo Plantão Fácil
+- [ ] GitHub Pages
+- [ ] CI com testes
+
+### Depois do MVP
+
+- [ ] GitHub Actions integration
+- [ ] policy packs customizados
+- [ ] suporte a múltiplos perfis PRCP
+- [ ] templates de Evidence Pack
+- [ ] validação de schemas
+- [ ] integração MCP local
+- [ ] adapters para agentes e IDEs
+- [ ] dashboard web opcional
+- [ ] modo team/enterprise
+
+---
+
+## Exemplo de comandos
+
+```bash
 devforge init
 devforge scan
 devforge plan --spec specs/SPEC-AUTH-001.md
 devforge policy check --diff
 devforge evidence --issue ISSUE-AUTH-001
-Para quem é
+```
+
+---
+
+## Para quem é
 
 DevForge CLI é para:
 
-desenvolvedores usando IA no dia a dia;
-tech leads revisando código gerado por agentes;
-times que querem governança antes do merge;
-projetos open-source que querem rastreabilidade;
-equipes que precisam de evidência mínima sobre mudanças críticas;
-devs que querem usar IA sem perder controle.
-Princípios
-Local-first
+- desenvolvedores usando IA no dia a dia;
+- tech leads revisando código gerado por agentes;
+- times que querem governança antes do merge;
+- projetos open-source que querem rastreabilidade;
+- equipes que precisam de evidência mínima sobre mudanças críticas;
+- devs que querem usar IA sem perder controle.
+
+---
+
+## Princípios
+
+### 1. Local-first
+
 O estado de governança vive no seu repositório.
-Markdown + JSON
+
+### 2. Markdown + JSON
+
 Humanos leem Markdown. Ferramentas processam JSON.
-Sem cloud login obrigatório
+
+### 3. Sem cloud login obrigatório
+
 O MVP deve funcionar sem conta, sem SaaS e sem rede.
-Agente não decide sozinho
+
+### 4. Agente não decide sozinho
+
 IA pode sugerir e executar, mas mudanças de risco exigem política, evidência e revisão.
-Evidência antes do merge
+
+### 5. Evidência antes do merge
+
 Pull requests devem carregar prova mínima do que foi feito.
-Governança proporcional ao risco
+
+### 6. Governança proporcional ao risco
+
 Nem toda mudança precisa do mesmo rigor.
-Contribuindo
+
+---
+
+## Contribuindo
 
 Contribuições são bem-vindas.
 
 Você pode ajudar com:
 
-implementação dos comandos;
-exemplos reais;
-policy packs;
-documentação;
-testes;
-templates de evidência;
-melhorias de UX no terminal;
-integração com GitHub Actions.
+- implementação dos comandos;
+- exemplos reais;
+- policy packs;
+- documentação;
+- testes;
+- templates de evidência;
+- melhorias de UX no terminal;
+- integração com GitHub Actions.
 
 Fluxo sugerido:
 
+```bash
 git clone https://github.com/mffdeo/devforge-ai-cli.git
 cd devforge-ai-cli
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
 pytest
-Desenvolvimento local
+```
+
+---
+
+## Desenvolvimento local
+
+```bash
 # Instalar dependências de desenvolvimento
 pip install -e ".[dev]"
 
@@ -486,7 +639,11 @@ ruff check .
 
 # Testar CLI localmente
 devforge --help
-Status do projeto
+```
+
+---
+
+## Status do projeto
 
 Este projeto está em fase inicial.
 
@@ -496,14 +653,20 @@ O objetivo do primeiro release não é fazer tudo.
 
 O objetivo é provar um fluxo:
 
+```text
 scan → plan → policy check → evidence
+```
 
 Se esse fluxo for útil, o projeto evolui.
 
-Licença
+---
+
+## Licença
 
 MIT License.
 
-Frase curta
+---
 
-Before merging AI-assisted code, run DevForge.
+## Frase curta
+
+> **Before merging AI-assisted code, run DevForge.**
