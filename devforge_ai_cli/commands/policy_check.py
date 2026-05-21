@@ -93,6 +93,11 @@ def run_policy_check(
 
     review_request = check_review_request(base, devforge_dir)
 
+    # PRCP separation (see the longer comment near the payload below).
+    project_prcp_baseline = profile.get("prcp", {}).get("task_elevation", "Standard")
+    effective_prcp_level = existing_policy.get("prcp_level", project_prcp_baseline)
+    prcp_level = effective_prcp_level  # used by Rich renderer and audit
+
     # ── review brief for AI-assisted review ─────────────────────────────────
     review_brief_relpath: str | None = None
     ai_review_prompt: str | None = None
@@ -103,9 +108,15 @@ def run_policy_check(
         and spec_id is not None
     )
     if human_review_missing:
-        brief_pc = {**result, "evidence_status": evidence_status, "evidence_details": evidence_details,
-                    "review_request_paths": review_request.matched_paths,
-                    "prcp_level": profile.get("prcp", {}).get("task_elevation", "Standard")}
+        brief_pc = {
+            **result,
+            "evidence_status": evidence_status,
+            "evidence_details": evidence_details,
+            "review_request_paths": review_request.matched_paths,
+            "prcp_level": effective_prcp_level,
+            "project_prcp_baseline": project_prcp_baseline,
+            "effective_prcp_level": effective_prcp_level,
+        }
         brief_path = render_review_brief(base, spec_id, brief_pc)
         review_brief_relpath = str(brief_path.relative_to(base))
         ai_review_prompt = suggested_ai_review_prompt(spec_id)
@@ -127,7 +138,14 @@ def run_policy_check(
     result["recommended_actions"] = recommended
 
     timestamp = datetime.now(timezone.utc).isoformat()
-    prcp_level = profile.get("prcp", {}).get("task_elevation", "Standard")
+    # PRCP separation:
+    #   project_prcp_baseline = task_elevation as decided by `devforge scan`
+    #   effective_prcp_level  = PRCP applied by `devforge plan` for this SPEC
+    #                           (it can be higher than the project baseline
+    #                            when the SPEC itself touches a database).
+    # `prcp_level` keeps existing call sites working and now points at the
+    # effective value — never at the baseline alone.
+    # (computed earlier so the review brief uses the same numbers)
     policy_source = str(existing_policy_files[0].relative_to(base)) if existing_policy_files else None
 
     payload = {
@@ -140,6 +158,8 @@ def run_policy_check(
         "review_brief_path": review_brief_relpath,
         "suggested_ai_review_prompt": ai_review_prompt,
         "policy_source": policy_source,
+        "project_prcp_baseline": project_prcp_baseline,
+        "effective_prcp_level": effective_prcp_level,
         "prcp_level": prcp_level,
         "timestamp": timestamp,
     }
@@ -179,6 +199,8 @@ def run_policy_check(
             "recommended_actions": result["recommended_actions"],
             "generated_files": generated_files,
             "evidence_issue_id": evidence_issue_id,
+            "project_prcp_baseline": project_prcp_baseline,
+            "effective_prcp_level": effective_prcp_level,
             "next_step": f"devforge evidence --issue {evidence_issue_id}",
         }))
     elif plain:

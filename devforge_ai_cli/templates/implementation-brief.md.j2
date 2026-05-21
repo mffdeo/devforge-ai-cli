@@ -48,6 +48,16 @@ The agent may modify, within the limits of the SPEC and Plan Pack:
 - não varrer `.venv/`
 - não tratar `.devforge/audit/`, `.devforge/evidence/` ou `.devforge/prcp/` como código de aplicação
 
+## Sobre revisão humana
+
+- O agente **não** deve criar `.devforge/reviews/HUMAN-REVIEW-{{ spec_id }}.md`.
+- `HUMAN-REVIEW-{{ spec_id }}.md` é gerado exclusivamente por
+  `devforge review --issue {{ spec_id }}` operado por um humano.
+- O agente pode criar `.devforge/reviews/AI-REVIEW-NOTES-{{ spec_id }}.md`
+  ou `.devforge/reviews/REVIEW-REQUEST-{{ spec_id }}.md` com observações
+  da revisão assistida — DevForge trata esses arquivos como `review_request`,
+  nunca como aprovação humana.
+
 ## Suggested validations
 
 ```bash

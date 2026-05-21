@@ -45,11 +45,14 @@ def render_review_brief(
         keep_trailing_newline=True,
     )
     tmpl = env.get_template("review-brief.md.j2")
+    baseline = policy_check.get("project_prcp_baseline") or policy_check.get("prcp_level") or "Standard"
+    effective = policy_check.get("effective_prcp_level") or policy_check.get("prcp_level") or baseline
     out.write_text(
         tmpl.render(
             issue_id=issue_id,
             policy_decision=policy_check.get("decision", "REQUIRE_APPROVAL"),
-            prcp_level=policy_check.get("prcp_level", "Standard"),
+            project_prcp_baseline=baseline,
+            effective_prcp_level=effective,
             reasons=policy_check.get("reasons", []) or [],
             changed_files=policy_check.get("changed_files", []) or [],
             required_evidence=policy_check.get("required_evidence", []) or [],

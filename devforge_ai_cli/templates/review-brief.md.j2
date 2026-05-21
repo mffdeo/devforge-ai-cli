@@ -2,6 +2,7 @@
 
 > Use este briefing como contexto para uma revisão assistida por IA.
 > A IA pode apontar riscos, anomalias e itens fora de escopo.
+>
 > **A IA NÃO aprova a revisão humana.** A aprovação final é registrada por:
 >
 > ```
@@ -9,12 +10,21 @@
 > ```
 >
 > Somente um humano operando esse comando satisfaz `human_review`.
+>
+> Regras para o agente:
+>
+> - Não criar `.devforge/reviews/HUMAN-REVIEW-{{ issue_id }}.md`.
+>   Esse arquivo é gerado exclusivamente por `devforge review`.
+> - O agente pode criar, se quiser, `AI-REVIEW-NOTES-{{ issue_id }}.md`
+>   ou `REVIEW-REQUEST-{{ issue_id }}.md` dentro de `.devforge/reviews/`
+>   — eles são tratados como `review_request`, não como aprovação.
 
 ## Contexto
 
 - **issue_id:** `{{ issue_id }}`
 - **policy_decision:** `{{ policy_decision }}`
-- **PRCP level:** `{{ prcp_level }}`
+- **Project PRCP baseline:** `{{ project_prcp_baseline }}`
+- **Effective PRCP for this SPEC:** `{{ effective_prcp_level }}`
 
 ## Referências
 

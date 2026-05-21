@@ -24,6 +24,8 @@ def write_evidence_pack(evidence: dict, base: Path) -> list[str]:
                 "status": evidence["status"],
                 "policy_decision": evidence["policy_decision"],
                 "prcp_level": evidence["prcp_level"],
+                "project_prcp_baseline": evidence.get("project_prcp_baseline"),
+                "effective_prcp_level": evidence.get("effective_prcp_level"),
                 "tests_passed": evidence["tests_passed"],
                 "human_review_required": evidence["human_review_required"],
                 "final_decision": evidence["final_decision"],

@@ -40,7 +40,20 @@ def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
     devforge_dir = get_devforge_dir(base)
 
     policy_decision = policy_check.get("decision", "REQUIRE_APPROVAL")
-    prcp_level = policy_check.get("prcp_level", "Standard")
+    # Carry both PRCP levels from the policy check. prcp_level (effective)
+    # remains for backwards compatibility, but downstream consumers can now
+    # disambiguate project baseline vs SPEC-effective elevation.
+    effective_prcp_level = (
+        policy_check.get("effective_prcp_level")
+        or policy_check.get("prcp_level")
+        or "Standard"
+    )
+    project_prcp_baseline = (
+        policy_check.get("project_prcp_baseline")
+        or policy_check.get("prcp_level")
+        or effective_prcp_level
+    )
+    prcp_level = effective_prcp_level
     changed_files = policy_check.get("changed_files", [])
     required_evidence = policy_check.get("required_evidence", ["audit_log"])
     reasons = policy_check.get("reasons", [])
@@ -97,6 +110,8 @@ def collect_evidence(issue_id: str, policy_check: dict, base: Path) -> dict:
         "status": status,
         "policy_decision": policy_decision,
         "prcp_level": prcp_level,
+        "project_prcp_baseline": project_prcp_baseline,
+        "effective_prcp_level": effective_prcp_level,
         "tests_passed": tests_passed,
         "human_review_required": human_review_required,
         "final_decision": final_decision,
