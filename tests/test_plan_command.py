@@ -267,6 +267,76 @@ def test_plan_priority_spec_requires_approval_and_human_review(tmp_path):
     assert "audit_log" in required
 
 
+def test_plan_priority_spec_ignores_auth_in_profile_sensitive_areas(tmp_path):
+    """Regression: a project may have auth files detected by scan
+    (user.py, login.py, permissions/), so sensitive_areas inherits
+    'auth'. A SPEC clearly about task priority must NOT inherit that
+    domain. The SPEC headline owns the classification."""
+    profile = {
+        "sensitive_areas": ["auth", "login", "permissions", "user", "database", "sqlite"],
+        "signals": {"has_database": True, "touches_auth": True},
+    }
+    spec_data = {
+        "spec_id": "SPEC-PRIORITY-001",
+        "title": "Prioridade em tarefas",
+        "content": SPEC_PRIORITY_CONTENT,
+        "sections": {"objetivo": "Adicionar prioridade às tarefas de um Todo App Flask/SQLite."},
+    }
+    domain, _ = classify_spec_domain(spec_data, profile)
+    assert domain == "task_priority"
+
+    tasks = generate_tasks("SPEC-PRIORITY-001", spec_data, profile)
+    joined = " ".join(t["description"].lower() for t in tasks)
+    for forbidden in ("autenticação", "permissões", "papéis", "auth"):
+        assert forbidden not in joined, f"task de auth vazou: {forbidden!r}"
+
+
+def test_plan_priority_spec_ignores_incidental_auth_word_in_body(tmp_path):
+    """Regression: body mentions 'sessão' incidentally (e.g. 'a ordem
+    persiste durante a sessão'). The headline still wins."""
+    content = SPEC_PRIORITY_CONTENT + "\n## Notas\n\nA ordem de prioridade persiste durante a sessão do usuário.\n"
+    spec_data = {
+        "spec_id": "SPEC-PRIORITY-001",
+        "title": "Prioridade em tarefas",
+        "content": content,
+        "sections": {"objetivo": "Adicionar prioridade às tarefas."},
+    }
+    domain, _ = classify_spec_domain(spec_data, profile={})
+    assert domain == "task_priority"
+
+
+def test_plan_priority_spec_end_to_end_with_auth_profile(tmp_path):
+    """Full pipeline regression of the bug the user hit: a Flask Todo
+    project where scan also flagged auth (user.py) must still produce
+    the task_priority template for SPEC-PRIORITY-001."""
+    _init_and_scan(tmp_path)
+    # Pollute the scan profile to simulate auth detection in the real project.
+    profile_path = tmp_path / ".devforge" / "prcp" / "project-profile.json"
+    profile = json.loads(profile_path.read_text())
+    profile["sensitive_areas"] = sorted(set(profile.get("sensitive_areas", [])) | {"auth", "login", "permissions"})
+    profile["signals"]["touches_auth"] = True
+    profile_path.write_text(json.dumps(profile, indent=2, ensure_ascii=False))
+
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+
+    plan_md = (tmp_path / ".devforge" / "plans" / "PLAN-SPEC-PRIORITY-001.md").read_text()
+    plan_lower = plan_md.lower()
+
+    for forbidden in ("mapear fluxo de autenticação", "permissões e papéis", "testes mínimos de auth"):
+        assert forbidden not in plan_lower, f"task de auth vazou no PLAN.md: {forbidden!r}"
+
+    for required in (
+        "mapear modelo atual de tarefas",
+        "adicionar campo de prioridade ao schema sqlite",
+        "atualizar formulário de criação de tarefa",
+        "exibir prioridade na lista de tarefas",
+        'definir valor padrão "média"',
+        "preparar testes manuais e rollback plan",
+    ):
+        assert required in plan_lower, f"task de priority faltando no PLAN.md: {required!r}"
+
+
 def test_plan_priority_spec_end_to_end(tmp_path):
     """Run the actual command and inspect generated artifacts."""
     _init_and_scan(tmp_path)

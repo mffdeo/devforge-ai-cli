@@ -77,32 +77,65 @@ def _spec_lower(spec_data: dict) -> str:
     return spec_data.get("content", "").lower()
 
 
+def _hits(text: str, terms: set[str]) -> bool:
+    return any(term in text for term in terms)
+
+
 def classify_spec_domain(spec_data: dict, profile: dict | None = None) -> tuple[str, bool]:
     """Infer SPEC domain and whether it touches a database.
 
     Returns (domain, touches_database) where domain is one of:
       'auth', 'payment', 'task_priority', 'generic_feature'.
 
-    touches_database is True when the SPEC text or the scan profile show
-    signs of database/schema work (sqlite, CREATE TABLE, migrations, ...).
+    The classifier is headline-first: the SPEC id, title and objective
+    section have absolute precedence over the body and over the scan
+    profile's sensitive_areas. This protects against two real-world
+    sources of false positives:
+
+      1. The project has auth-related files (user.py, login.py,
+         permissions/) detected by scan, so sensitive_areas inherits
+         'auth'. A SPEC about task priority must NOT inherit that.
+      2. The SPEC body mentions an auth-ish word incidentally (e.g.
+         "a ordem de prioridade persiste durante a sessão do usuário").
+         The headline still owns the classification.
+
+    Only when the headline is silent do we fall back to scanning the
+    full content and the scan profile.
+
+    touches_database stays orthogonal to the domain and is True when the
+    SPEC text or scan profile show database/schema work.
     """
     profile = profile or {}
     content = _spec_lower(spec_data)
     sensitive = set(profile.get("sensitive_areas", []))
     signals = profile.get("signals", {})
 
+    spec_id = (spec_data.get("spec_id") or "").lower()
+    title = (spec_data.get("title") or "").lower()
+    sections = spec_data.get("sections") or {}
+    objective = (sections.get("objetivo") or sections.get("objective") or "").lower()
+    headline = f"{spec_id} {title} {objective}".strip()
+
     touches_database = (
-        any(term in content for term in _DB_KWS | _DB_EXTRA_TERMS)
+        _hits(content, _DB_KWS | _DB_EXTRA_TERMS)
         or bool(_DB_KWS & sensitive)
         or bool({"database", "schema", "sqlite"} & sensitive)
         or bool(signals.get("has_database", False))
     )
 
-    if any(term in content for term in _AUTH_KWS | _AUTH_EXTRA_TERMS) or bool(_AUTH_KWS & sensitive):
+    if headline:
+        if _hits(headline, _TASK_PRIORITY_TERMS):
+            return "task_priority", touches_database
+        if _hits(headline, _AUTH_KWS | _AUTH_EXTRA_TERMS):
+            return "auth", touches_database
+        if _hits(headline, _PAYMENT_KWS):
+            return "payment", touches_database
+
+    if _hits(content, _AUTH_KWS | _AUTH_EXTRA_TERMS) or bool(_AUTH_KWS & sensitive):
         return "auth", touches_database
-    if any(term in content for term in _PAYMENT_KWS) or bool(_PAYMENT_KWS & sensitive):
+    if _hits(content, _PAYMENT_KWS) or bool(_PAYMENT_KWS & sensitive):
         return "payment", touches_database
-    if any(term in content for term in _TASK_PRIORITY_TERMS):
+    if _hits(content, _TASK_PRIORITY_TERMS):
         return "task_priority", touches_database
     return "generic_feature", touches_database
 
