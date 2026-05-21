@@ -5,10 +5,25 @@ build-backend = "hatchling.build"
 [project]
 name = "devforge-ai-cli"
 version = "0.1.0"
-description = "Local-first governance CLI for AI-assisted SDLC"
+description = "Local-first governance CLI for AI-assisted SDLC: risk classification, context packs, policy gates and evidence packages before merge."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.12"
+authors = [{ name = "Marcos Oliveira", email = "cursosacessototal@gmail.com" }]
+keywords = [
+    "ai", "cli", "sdlc", "governance", "policy-as-code",
+    "audit-trail", "evidence", "devsecops", "local-first",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: System :: Systems Administration",
+]
 dependencies = [
     "typer>=0.12",
     "rich>=13",
@@ -17,6 +32,11 @@ dependencies = [
     "jinja2>=3",
 ]
 
+[project.urls]
+Homepage = "https://mffdeo.github.io/devforge-ai-cli/"
+Repository = "https://github.com/mffdeo/devforge-ai-cli"
+Issues = "https://github.com/mffdeo/devforge-ai-cli/issues"
+
 [project.scripts]
 devforge = "devforge_ai_cli.cli:app"
 
@@ -24,6 +44,7 @@ devforge = "devforge_ai_cli.cli:app"
 dev = [
     "pytest>=8",
     "pytest-cov",
+    "ruff>=0.4",
 ]
 
 [tool.hatch.build.targets.wheel]
@@ -31,3 +52,11 @@ packages = ["devforge_ai_cli"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+ignore = ["E501"]

@@ -1,7 +1,10 @@
 from devforge_ai_cli.policy_engine.decisions import PolicyDecision
 from devforge_ai_cli.policy_engine.rules import (
-    AUTH_KWS, DATA_KWS, DB_CONTENT_KWS, DB_KWS,
-    SECRET_EXPOSURE_MARKERS, SENSITIVE_CONTENT_KWS,
+    AUTH_KWS,
+    DATA_KWS,
+    DB_CONTENT_KWS,
+    DB_KWS,
+    SECRET_EXPOSURE_MARKERS,
 )
 
 

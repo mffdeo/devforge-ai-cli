@@ -5,7 +5,7 @@ import pytest
 
 from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.scan import run_scan_cmd
-from devforge_ai_cli.core.scanner import run_scan, _detect_stack, _detect_sensitive_areas
+from devforge_ai_cli.core.scanner import _detect_sensitive_areas, _detect_stack
 
 
 def _init(tmp_path: Path) -> None:

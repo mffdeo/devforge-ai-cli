@@ -83,7 +83,6 @@ def render_evidence(evidence: dict, generated_files: list[str]) -> None:
     ))
     console.print()
 
-    dc = _decision_color(evidence["policy_decision"])
     sc = _status_color(evidence["status"])
     final_color = _status_color(evidence["final_decision"])
 

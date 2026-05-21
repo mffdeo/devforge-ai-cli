@@ -7,9 +7,6 @@ from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.plan import run_plan
 from devforge_ai_cli.commands.scan import run_scan_cmd
 from devforge_ai_cli.core.planner import (
-    ALLOWED_USES,
-    BLOCKED_USES,
-    PlanResult,
     determine_policy,
     generate_tasks,
     parse_spec,
@@ -141,7 +138,7 @@ def test_plan_records_audit_event(tmp_path):
     spec = _make_spec(tmp_path)
     run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
     audit = tmp_path / ".devforge" / "audit" / "audit.ndjson"
-    events = [json.loads(l) for l in audit.read_text().splitlines()]
+    events = [json.loads(line) for line in audit.read_text().splitlines()]
     plan_events = [e for e in events if e["event"] == "plan.generated"]
     assert len(plan_events) == 1
     e = plan_events[0]

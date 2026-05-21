@@ -6,7 +6,6 @@ import pytest
 from devforge_ai_cli.commands.evidence import run_evidence
 from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.plan import run_plan
-from devforge_ai_cli.commands.policy_check import run_policy_check
 from devforge_ai_cli.commands.scan import run_scan_cmd
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -152,7 +151,7 @@ def test_evidence_records_audit_event(tmp_path):
     _full_setup(tmp_path)
     _call(tmp_path)
     audit = tmp_path / ".devforge" / "audit" / "audit.ndjson"
-    events = [json.loads(l) for l in audit.read_text().splitlines()]
+    events = [json.loads(line) for line in audit.read_text().splitlines()]
     ev_events = [e for e in events if e["event"] == "evidence.generated"]
     assert len(ev_events) >= 1
     e = ev_events[-1]

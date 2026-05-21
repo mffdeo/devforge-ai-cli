@@ -52,8 +52,6 @@ def _files_table(files: list[str]) -> Table:
 
 
 def _summary_panel(result: PlanResult) -> Panel:
-    dc = _decision_color(result.policy_decision)
-
     # Tasks section
     tasks_grid = Table.grid(padding=(0, 1))
     tasks_grid.add_column(style=f"bold {t.CYAN}", justify="right", min_width=2)

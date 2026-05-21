@@ -1,7 +1,4 @@
 import json
-from pathlib import Path
-
-import pytest
 
 from devforge_ai_cli.commands.init import SUBDIRS, run_init
 

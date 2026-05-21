@@ -174,7 +174,7 @@ def test_policy_check_records_audit_event(tmp_path):
     _full_setup(tmp_path)
     _call(tmp_path)
     audit = tmp_path / ".devforge" / "audit" / "audit.ndjson"
-    events = [json.loads(l) for l in audit.read_text().splitlines()]
+    events = [json.loads(line) for line in audit.read_text().splitlines()]
     pc_events = [e for e in events if e["event"] == "policy.checked"]
     assert len(pc_events) >= 1
     e = pc_events[-1]
