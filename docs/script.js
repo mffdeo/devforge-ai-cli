@@ -2,7 +2,7 @@
 
 document.querySelectorAll("[data-copy]").forEach((button) => {
   button.addEventListener("click", async () => {
-    const text = button.getAttribute("data-copy");
+    const text = button.getAttribute("data-copy"); // never changes
     try {
       await navigator.clipboard.writeText(text);
     } catch {
@@ -25,128 +25,115 @@ document.querySelectorAll("[data-copy]").forEach((button) => {
 
 // ── i18n ──────────────────────────────────────────────────────────────────────
 
-const T = {
+const translations = {
   "pt-BR": {
-    // Hero
-    hero_subtitle: "Do scan à evidência antes do merge.",
-    hero_lead: "Classifique risco, controle contexto, aplique política e gere evidências auditáveis — tudo local, sem cloud login, pronto para o merge.",
-    // Flow
-    flow_section_title: "Cinco etapas. Um fluxo governado.",
-    flow_1: "Inicializa o projeto e a configuração local.",
-    flow_2: "Mapeia stack, risco e áreas sensíveis.",
-    flow_3: "Gera Plan Pack governado, Context Pack e Policy Decision.",
-    flow_4: "Aplica políticas e exige evidências.",
-    flow_5: "Gera pacotes de evidências auditáveis.",
-    // Features
-    features_section_title: "O que o DevForge CLI faz",
-    // Install
-    install_section_title: "Instale em segundos",
-    install_pipx_p: "Pacote ainda não publicado no PyPI — instale direto do GitHub.",
-    install_uv_p: "Rápido e leve com o uv.",
-    install_git_p: "Para quem quer hackear e contribuir.",
-    // CTA
-    cta_h2: "Jogue no GitHub. Leia o README. Contribua.",
-    cta_p: "DevForge CLI é open source e feito com a comunidade. Abra issues, envie PRs e ajude a evoluir.",
-    cta_github: "Ver no GitHub",
-    cta_readme: "Abrir README",
-    cta_contrib: "Contribuir",
-    // CLI panel
-    cli_section_title: "CLI na prática",
-    // H1
-    h1_line1: "Governança local-first",
-    h1_line2_prefix: "para ",
-    h1_highlight: "SDLC com IA.",
+    "hero.title.line1": "Governança local-first",
+    "hero.title.line2": "para SDLC com IA.",
+    "hero.kicker": "Do scan à evidência antes do merge.",
+    "hero.lead": "Classifique risco, controle contexto, aplique política e gere evidências auditáveis — tudo local, sem cloud login, pronto para o merge.",
+
+    "nav.resources": "Recursos",
+    "nav.how": "Como funciona",
+
+    "workflow.title": "Cinco etapas. Um fluxo governado.",
+    "workflow.init.desc": "Inicializa o projeto e a configuração local.",
+    "workflow.scan.desc": "Mapeia stack, risco e áreas sensíveis.",
+    "workflow.plan.desc": "Gera Plan Pack governado, Context Pack e Policy Decision.",
+    "workflow.policy.desc": "Aplica políticas e exige evidências.",
+    "workflow.evidence.desc": "Gera pacotes de evidências auditáveis.",
+
+    "features.title": "O que o DevForge CLI faz",
+    "features.prcp.desc": "Detecta stack, risco e integrações externas.",
+    "features.context.desc": "Coleta contexto e metadados do repositório.",
+    "features.policy.desc": "Aplica políticas organizacionais antes do merge.",
+    "features.evidence.desc": "Gera pacotes de evidências auditáveis.",
+    "features.local.desc": "Tudo rodando 100% local, sem cloud login.",
+    "features.audit.desc": "Trilha de auditoria em NDJSON, clara e verificável.",
+
+    "practice.title": "CLI na prática",
+
+    "install.title": "Instale em segundos",
+    "install.pipx.note": "Pacote ainda não publicado no PyPI — instale direto do GitHub.",
+    "install.uv.note": "Rápido e leve com o uv.",
+    "install.source.note": "Para quem quer hackear e contribuir.",
+
+    "cta.title": "Jogue no GitHub. Leia o README. Contribua.",
+    "cta.desc": "DevForge CLI é open source e feito com a comunidade. Abra issues, envie PRs e ajude a evoluir.",
+    "cta.github": "Ver no GitHub",
+    "cta.readme": "Abrir README",
+    "cta.contribute": "Contribuir",
   },
+
   "en": {
-    // Hero
-    hero_subtitle: "From scan to evidence before merge.",
-    hero_lead: "Classify risk, control context, apply policy, and generate auditable evidence — fully local, no cloud login, ready before merge.",
-    // Flow
-    flow_section_title: "Five steps. One governed flow.",
-    flow_1: "Initializes the project and local configuration.",
-    flow_2: "Maps stack, risk, and sensitive areas.",
-    flow_3: "Generates governed Plan Pack, Context Pack, and Policy Decision.",
-    flow_4: "Applies policies and requires evidence.",
-    flow_5: "Generates auditable evidence packages.",
-    // Features
-    features_section_title: "What DevForge CLI does",
-    // Install
-    install_section_title: "Install in seconds",
-    install_pipx_p: "Package not yet published to PyPI — install directly from GitHub.",
-    install_uv_p: "Fast and lightweight with uv.",
-    install_git_p: "For those who want to hack and contribute.",
-    // CTA
-    cta_h2: "Star on GitHub. Read the README. Contribute.",
-    cta_p: "DevForge CLI is open source and community-driven. Open issues, send PRs, and help it evolve.",
-    cta_github: "View on GitHub",
-    cta_readme: "Open README",
-    cta_contrib: "Contribute",
-    // CLI panel
-    cli_section_title: "CLI in practice",
-    // H1
-    h1_line1: "Local-first governance",
-    h1_line2_prefix: "for ",
-    h1_highlight: "AI-assisted SDLC.",
+    "hero.title.line1": "Local-first governance",
+    "hero.title.line2": "for AI-assisted SDLC.",
+    "hero.kicker": "From scan to evidence before merge.",
+    "hero.lead": "Classify risk, control context, apply policy, and generate auditable evidence — fully local, no cloud login, ready before merge.",
+
+    "nav.resources": "Features",
+    "nav.how": "How it works",
+
+    "workflow.title": "Five steps. One governed flow.",
+    "workflow.init.desc": "Initializes local project governance.",
+    "workflow.scan.desc": "Maps stack, risk, and sensitive areas.",
+    "workflow.plan.desc": "Generates a governed Plan Pack, Context Pack, and Policy Decision.",
+    "workflow.policy.desc": "Applies policies and requires evidence.",
+    "workflow.evidence.desc": "Generates auditable evidence packages.",
+
+    "features.title": "What DevForge CLI does",
+    "features.prcp.desc": "Detects stack, risk, and external integrations.",
+    "features.context.desc": "Collects repository context and metadata.",
+    "features.policy.desc": "Applies organizational policies before merge.",
+    "features.evidence.desc": "Generates auditable evidence packages.",
+    "features.local.desc": "Runs 100% locally, with no cloud login.",
+    "features.audit.desc": "Keeps a clear and verifiable NDJSON audit trail.",
+
+    "practice.title": "CLI in practice",
+
+    "install.title": "Install in seconds",
+    "install.pipx.note": "Package not published on PyPI yet — install directly from GitHub.",
+    "install.uv.note": "Fast and lightweight with uv.",
+    "install.source.note": "For contributors who want to hack on the project.",
+
+    "cta.title": "Star it on GitHub. Read the README. Contribute.",
+    "cta.desc": "DevForge CLI is open source and community-driven. Open issues, send PRs, and help it evolve.",
+    "cta.github": "View on GitHub",
+    "cta.readme": "Open README",
+    "cta.contribute": "Contribute",
   },
 };
 
-function _textNode(el) {
-  for (const n of el.childNodes) {
-    if (n.nodeType === Node.TEXT_NODE && n.textContent.trim()) return n;
-  }
-  return null;
-}
-
-function _updateSectionH2(selector, text) {
-  const h2 = document.querySelector(selector);
-  if (!h2) return;
-  const tn = _textNode(h2);
-  if (tn) tn.textContent = text;
-}
-
 function applyLanguage(lang) {
-  const dict = T[lang] || T["pt-BR"];
+  const dictionary = translations[lang] || translations["pt-BR"];
 
-  // data-i18n elements
-  document.querySelectorAll("[data-i18n]").forEach((el) => {
-    const key = el.getAttribute("data-i18n");
-    if (dict[key] !== undefined) el.textContent = dict[key];
+  document.querySelectorAll("[data-i18n]").forEach((element) => {
+    const key = element.dataset.i18n;
+    if (!dictionary[key]) return;
+
+    // Never touch elements inside <code> or <pre>
+    if (element.closest("code, pre")) return;
+
+    element.textContent = dictionary[key];
   });
 
-  // H1 — special: has text nodes + <br> + <span>
-  const h1 = document.querySelector(".hero-copy h1");
-  if (h1) {
-    const spans = h1.querySelectorAll("span");
-    const highlight = spans[spans.length - 1];
-    // text nodes: first before <br>, second after <br>
-    const textNodes = [...h1.childNodes].filter(
-      (n) => n.nodeType === Node.TEXT_NODE
-    );
-    if (textNodes[0]) textNodes[0].textContent = dict.h1_line1;
-    if (textNodes[1]) textNodes[1].textContent = dict.h1_line2_prefix;
-    if (highlight) highlight.textContent = dict.h1_highlight;
-  }
-
-  // Section h2 headers with decorative spans
-  _updateSectionH2("#como-funciona h2", dict.flow_section_title);
-  _updateSectionH2("#recursos h2", dict.features_section_title);
-  _updateSectionH2(".cli-panel h2", dict.cli_section_title);
-  _updateSectionH2("#install-title", dict.install_section_title);
-
-  // Active button
-  document.querySelectorAll(".lang-btn").forEach((btn) => {
-    btn.classList.toggle("active", btn.dataset.lang === lang);
+  document.querySelectorAll(".lang-btn").forEach((button) => {
+    const active = button.dataset.lang === lang;
+    button.classList.toggle("active", active);
+    button.setAttribute("aria-pressed", active ? "true" : "false");
   });
 
-  document.documentElement.lang = lang;
-  localStorage.setItem("devforge_lang", lang);
+  document.documentElement.lang = lang === "en" ? "en" : "pt-BR";
+  localStorage.setItem("devforge-lang", lang);
 }
-
-document.querySelectorAll(".lang-btn").forEach((btn) => {
-  btn.addEventListener("click", () => applyLanguage(btn.dataset.lang));
-});
 
 document.addEventListener("DOMContentLoaded", () => {
-  const saved = localStorage.getItem("devforge_lang") || "pt-BR";
-  applyLanguage(saved);
+  const savedLang = localStorage.getItem("devforge-lang") || "pt-BR";
+
+  document.querySelectorAll(".lang-btn").forEach((button) => {
+    button.addEventListener("click", () => {
+      applyLanguage(button.dataset.lang);
+    });
+  });
+
+  applyLanguage(savedLang);
 });

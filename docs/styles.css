@@ -310,7 +310,7 @@ svg {
   text-wrap: balance;
 }
 
-.hero-copy h1 span {
+.h1-line2 {
   color: var(--cyan);
   text-shadow: 0 0 18px rgba(0, 221, 255, .25);
 }
@@ -556,15 +556,15 @@ pre {
   letter-spacing: -.06em;
 }
 
-.panel h2 span,
-.install-section h2 span {
+.panel h2 .deco,
+.install-section h2 .deco {
   display: block;
   height: 1px;
   background: linear-gradient(90deg, transparent, rgba(0, 229, 255, .7));
 }
 
-.panel h2 span:last-child,
-.install-section h2 span:last-child {
+.panel h2 .deco:last-child,
+.install-section h2 .deco:last-child {
   background: linear-gradient(90deg, rgba(0, 229, 255, .7), transparent);
 }
 
