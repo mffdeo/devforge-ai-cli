@@ -98,6 +98,7 @@ def review(
     approve: bool = typer.Option(False, "--approve", help="Approve without interactive prompt."),
     yes: bool = typer.Option(False, "--yes", help="Skip every confirmation (CI use)."),
     notes: str | None = typer.Option(None, "--notes", help="Optional reviewer notes."),
+    show_diff: bool = typer.Option(False, "--show-diff", help="Print `git diff --stat` before asking for approval."),
     plain: bool = typer.Option(False, "--plain", help="Plain text output."),
     output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
 ) -> None:
@@ -109,6 +110,7 @@ def review(
         approve=approve,
         yes=yes,
         notes=notes,
+        show_diff=show_diff,
         plain=plain,
         output_json=output_json,
     )

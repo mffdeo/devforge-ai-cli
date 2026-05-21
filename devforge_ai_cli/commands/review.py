@@ -99,8 +99,151 @@ def _ask_approval(yes: bool, approve: bool, interactive: bool) -> bool:
         return True
     if not interactive:
         return False
-    ans = input("Aprovar revisão humana? [y/N] ").strip().lower()
+    ans = input(
+        "Você revisou os itens acima e aprova esta revisão humana? [y/N] "
+    ).strip().lower()
     return ans in ("y", "yes", "s", "sim")
+
+
+def _files_to_review(issue: str, policy_check: dict, base: Path) -> list[str]:
+    """Concrete file list the reviewer should open before approving."""
+    files: list[str] = []
+    devforge_dir = get_devforge_dir(base)
+
+    # SPEC and Plan Pack
+    spec_md = base / "specs" / f"{issue}.md"
+    if spec_md.exists():
+        files.append(str(spec_md.relative_to(base)))
+    plan_md = devforge_dir / "plans" / f"PLAN-{issue}.md"
+    if plan_md.exists():
+        files.append(str(plan_md.relative_to(base)))
+
+    # Changed files from the latest policy check
+    for f in policy_check.get("changed_files", []) or []:
+        if f not in files:
+            files.append(f)
+
+    # Recognized evidence files (matched_paths from evidence_details)
+    details = policy_check.get("evidence_details", {}) or {}
+    for name in ("test_report", "rollback_plan"):
+        for p in (details.get(name) or {}).get("matched_paths", []) or []:
+            if p not in files:
+                files.append(p)
+
+    # Review request files (if any) — surfaced so the reviewer can see what
+    # the agent prepared as a review request.
+    for p in policy_check.get("review_request_paths", []) or []:
+        if p not in files:
+            files.append(p)
+
+    return files
+
+
+def _diff_summary(base: Path) -> str:
+    """Best-effort `git diff --stat` text. Falls back to empty string."""
+    parts: list[str] = []
+    for args in (["git", "diff", "--stat"], ["git", "diff", "--cached", "--stat"]):
+        try:
+            r = subprocess.run(
+                args, cwd=base, capture_output=True, text=True, timeout=5,
+            )
+            if r.returncode == 0 and r.stdout.strip():
+                parts.append(r.stdout.rstrip())
+        except (subprocess.SubprocessError, FileNotFoundError):
+            continue
+    return "\n".join(parts)
+
+
+_CHECKLIST = [
+    "A SPEC foi revisada?",
+    "O Plan Pack foi seguido?",
+    "A implementação ficou limitada ao escopo?",
+    "Os arquivos alterados fazem sentido?",
+    "O test report está presente?",
+    "O rollback plan está presente (quando exigido)?",
+    "O diff não contém segredo, token ou credencial?",
+    "Não foi adicionado login/auth/cloud fora do escopo?",
+]
+
+
+def _print_review_summary(
+    issue: str,
+    policy_check: dict,
+    base: Path,
+    show_diff: bool,
+) -> None:
+    """Render the review briefing to stdout BEFORE asking for approval.
+
+    Used in both Rich and --plain mode. --json mode does not call this; the
+    machine consumer already gets the same data structurally.
+    """
+    print(f"════ Human review — {issue} ════")
+    print(f"Policy decision: {policy_check.get('decision', '?')}")
+    print(f"PRCP level:      {policy_check.get('prcp_level', '?')}")
+
+    reasons = policy_check.get("reasons", []) or []
+    print("\nReasons:")
+    if reasons:
+        for r in reasons:
+            print(f"  - {r}")
+    else:
+        print("  (nenhuma reason registrada)")
+
+    changed = policy_check.get("changed_files", []) or []
+    print(f"\nChanged files ({len(changed)}):")
+    if changed:
+        for f in changed:
+            print(f"  - {f}")
+    else:
+        print("  (sem arquivos alterados no snapshot do policy check)")
+
+    required = policy_check.get("required_evidence", []) or []
+    status = policy_check.get("evidence_status", {}) or {}
+    details = policy_check.get("evidence_details", {}) or {}
+    print("\nRequired evidence:")
+    for ev in required:
+        st = status.get(ev, "unknown")
+        paths = (details.get(ev) or {}).get("matched_paths") or []
+        if st == "present" and paths:
+            print(f"  - {ev}: present → {', '.join(paths)}")
+        elif st == "present":
+            print(f"  - {ev}: present")
+        else:
+            expected = (details.get(ev) or {}).get("expected_paths") or []
+            esc = f" — esperado em: {', '.join(expected)}" if expected else ""
+            print(f"  - {ev}: missing{esc}")
+
+    rr_paths = policy_check.get("review_request_paths", []) or []
+    if rr_paths:
+        print("\nReview request files (não substituem human_review):")
+        for p in rr_paths:
+            print(f"  - {p}")
+
+    files = _files_to_review(issue, policy_check, base)
+    print("\nArquivos para revisar:")
+    if files:
+        for f in files:
+            print(f"  - {f}")
+    else:
+        print("  (sem arquivos vinculados)")
+
+    if show_diff:
+        ds = _diff_summary(base)
+        print("\nDiff stat:")
+        if ds:
+            for line in ds.splitlines():
+                print(f"  {line}")
+        else:
+            print("  (sem diff disponível)")
+
+    print("\nO que revisar:")
+    for q in _CHECKLIST:
+        print(f"  - {q}")
+
+    nxt = policy_check.get("next_step")
+    if nxt:
+        print(f"\nNext step (após review): {nxt}")
+    print()
 
 
 def _render(
@@ -158,6 +301,7 @@ def run_review(
     notes: str | None,
     plain: bool,
     output_json: bool,
+    show_diff: bool = False,
     cwd: Path | None = None,
 ) -> int:
     base = cwd or Path.cwd()
@@ -195,9 +339,14 @@ def run_review(
         )
         raise SystemExit(1)
 
+    # Show the briefing before asking for approval (skip in --json so
+    # automation gets a clean machine-readable payload).
+    if not output_json:
+        _print_review_summary(issue, policy_check, base, show_diff)
+
     approved = _ask_approval(yes=yes, approve=approve, interactive=interactive)
     if not approved:
-        msg = "Revisão NÃO aprovada. HUMAN-REVIEW não foi gerado."
+        msg = "Revisão humana não registrada. Revise os arquivos listados e rode novamente."
         if output_json:
             print(json.dumps({
                 "issue_id": issue,

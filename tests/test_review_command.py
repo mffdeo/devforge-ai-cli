@@ -357,6 +357,133 @@ def test_policy_check_omits_review_after_human_review_present(
     assert "devforge evidence --issue SPEC-PRIORITY-001" in actions
 
 
+def test_review_prints_summary_before_prompt(tmp_path: Path, capsys, monkeypatch):
+    """In interactive (non --plain / non --json) mode the briefing must be
+    printed before the approval prompt — reasons, changed_files,
+    evidence_status, files-to-review, what-to-check checklist."""
+    _setup(tmp_path)
+    # Avoid the reviewer prompt by passing --reviewer; force "no" on approval
+    inputs = iter(["n"])
+    monkeypatch.setattr("builtins.input", lambda *a, **kw: next(inputs))
+    capsys.readouterr()
+    rc = run_review(
+        issue="SPEC-PRIORITY-001",
+        reviewer="Marcos", role=None,
+        approve=False, yes=False, notes=None,
+        plain=False, output_json=False, cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    assert rc == 1
+    # Summary blocks
+    assert "Human review — SPEC-PRIORITY-001" in out
+    assert "Reasons:" in out
+    assert "Changed files" in out
+    assert "Required evidence:" in out
+    assert "Arquivos para revisar:" in out
+    assert "O que revisar:" in out
+    # Checklist items
+    assert "A SPEC foi revisada?" in out
+    assert "O test report está presente?" in out
+    assert "O diff não contém segredo, token ou credencial?" in out
+    # SPEC and Plan Pack listed in arquivos para revisar
+    assert "specs/SPEC-PRIORITY-001.md" in out
+    assert ".devforge/plans/PLAN-SPEC-PRIORITY-001.md" in out
+
+
+def test_review_prompt_wording_was_updated():
+    """The input() prompt itself is monkeypatched in tests, so we sanity
+    check the wording from the source instead."""
+    from pathlib import Path as _P
+    src = _P(__file__).parent.parent / "devforge_ai_cli" / "commands" / "review.py"
+    text = src.read_text(encoding="utf-8")
+    assert "Você revisou os itens acima e aprova esta revisão humana?" in text
+
+
+def test_review_summary_in_plain_mode_too(tmp_path: Path, capsys):
+    _setup(tmp_path)
+    capsys.readouterr()
+    run_review(
+        issue="SPEC-PRIORITY-001",
+        reviewer="Marcos", role=None,
+        approve=True, yes=True, notes=None,
+        plain=True, output_json=False, cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    assert "Human review — SPEC-PRIORITY-001" in out
+    assert "Reasons:" in out
+    assert "Required evidence:" in out
+
+
+def test_review_no_response_does_not_generate_and_emits_clear_message(
+    tmp_path: Path, capsys, monkeypatch
+):
+    _setup(tmp_path)
+    inputs = iter(["n"])
+    monkeypatch.setattr("builtins.input", lambda *a, **kw: next(inputs))
+    capsys.readouterr()
+    rc = run_review(
+        issue="SPEC-PRIORITY-001",
+        reviewer="Marcos", role=None,
+        approve=False, yes=False, notes=None,
+        plain=False, output_json=False, cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    assert rc == 1
+    assert not (
+        tmp_path / ".devforge" / "reviews" / "HUMAN-REVIEW-SPEC-PRIORITY-001.md"
+    ).exists()
+    assert "Revisão humana não registrada" in out
+    assert "Revise os arquivos listados e rode novamente" in out
+
+
+def test_review_show_diff_includes_diff_stat(tmp_path: Path, capsys, monkeypatch):
+    _setup(tmp_path)
+    import devforge_ai_cli.commands.review as review_mod
+
+    def fake_run(args, **kw):
+        class R:
+            pass
+        r = R()
+        if args[:2] == ["git", "diff"]:
+            r.returncode = 0
+            r.stdout = " app.py | 5 ++++-\n 1 file changed, 4 insertions(+), 1 deletion(-)\n"
+        else:
+            r.returncode = 1
+            r.stdout = ""
+        return r
+    monkeypatch.setattr(review_mod.subprocess, "run", fake_run)
+    capsys.readouterr()
+    run_review(
+        issue="SPEC-PRIORITY-001",
+        reviewer="Marcos", role=None,
+        approve=True, yes=True, notes=None,
+        plain=True, output_json=False, cwd=tmp_path,
+        show_diff=True,
+    )
+    out = capsys.readouterr().out
+    assert "Diff stat:" in out
+    assert "app.py" in out
+    assert "1 file changed" in out
+
+
+def test_review_json_mode_does_not_print_summary(tmp_path: Path, capsys):
+    """JSON consumers must get a clean machine-readable payload only."""
+    _setup(tmp_path)
+    capsys.readouterr()
+    run_review(
+        issue="SPEC-PRIORITY-001",
+        reviewer="Marcos", role=None,
+        approve=True, yes=True, notes=None,
+        plain=False, output_json=True, cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    # The whole stdout should be parseable JSON
+    data = json.loads(out)
+    assert data["decision"] == "Approved"
+    assert "O que revisar" not in out
+    assert "Arquivos para revisar" not in out
+
+
 def test_full_flow_remains_green(tmp_path: Path):
     """init → scan → plan → policy check → review → policy check → evidence."""
     spec = _setup(tmp_path)
