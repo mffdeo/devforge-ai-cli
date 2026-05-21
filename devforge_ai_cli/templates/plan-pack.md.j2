@@ -1,18 +1,26 @@
 # Plan Pack — {{ spec_id }}
 
-**SPEC:** {{ spec_path }}
+**SPEC:** {{ spec_id }} — {{ spec_title }}
+**SPEC Path:** {{ spec_path }}
 **Generated:** {{ timestamp }}
 **PRCP:** {{ prcp_level }}
+**Policy Decision:** {{ policy_decision }}
 
-## Tasks
+## Tarefas
 
-{% for task in tasks %}- [ ] {{ task }}
+{% for task in tasks %}- [ ] [{{ task.id }}] {{ task.description }}
 {% endfor %}
+
+## Próximos passos
+
+1. Implementar com humano ou agente usando o Context Pack.
+2. Rodar: `devforge policy check --diff`
+3. Gerar evidências: `devforge evidence --issue {{ spec_id }}`
 
 ## Context Pack
 
 See `.devforge/context/context-pack.md`
 
-## Policy
+## Policy Decision
 
-Initial decision: {{ policy_decision }}
+See `.devforge/policy/POLICY-DECISION-{{ spec_id }}.json`
