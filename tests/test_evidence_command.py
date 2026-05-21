@@ -272,6 +272,7 @@ def test_evidence_screen_does_not_show_pending_human_review_when_human_review_pr
     assert "present" in out
     assert "approved_with_human_review" in out
     assert "pending_human_review" not in out
+    assert "devforge pr-ready --issue ISSUE-AUTH-001" in out
 
 
 def test_evidence_workflow_includes_review_before_evidence(tmp_path, capsys):

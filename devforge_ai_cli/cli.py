@@ -5,6 +5,7 @@ from devforge_ai_cli.commands import evidence as evidence_cmd
 from devforge_ai_cli.commands import init as init_cmd
 from devforge_ai_cli.commands import plan as plan_cmd
 from devforge_ai_cli.commands import policy_check as policy_cmd
+from devforge_ai_cli.commands import pr_ready as pr_ready_cmd
 from devforge_ai_cli.commands import review as review_cmd
 from devforge_ai_cli.commands import scan as scan_cmd
 
@@ -87,6 +88,17 @@ def evidence(
 ) -> None:
     """Collect and package evidence before a PR."""
     exit_code = evidence_cmd.run_evidence(issue=issue, plain=plain, output_json=output_json)
+    raise typer.Exit(code=exit_code)
+
+
+@app.command("pr-ready")
+def pr_ready(
+    issue: str = typer.Option(..., "--issue", help="Issue ID to prepare PR guidance for."),
+    plain: bool = typer.Option(False, "--plain", help="Plain text output."),
+    output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
+) -> None:
+    """Prepare commit and PR guidance after an approved Evidence Pack."""
+    exit_code = pr_ready_cmd.run_pr_ready(issue=issue, plain=plain, output_json=output_json)
     raise typer.Exit(code=exit_code)
 
 

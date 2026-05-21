@@ -153,6 +153,11 @@ def render_evidence(evidence: dict, generated_files: list[str]) -> None:
         f"[{t.MUTED}]review[/{t.MUTED}] [{t.CYAN}]→[/{t.CYAN}] "
         f"[bold {t.CYAN}]evidence[/bold {t.CYAN}]"
     )
+    next_step = (
+        f"devforge pr-ready --issue {evidence['issue_id']}"
+        if evidence["status"] == "ready_for_merge"
+        else f"devforge evidence --issue {evidence['issue_id']}"
+    )
 
     left_items: list = [
         Text.from_markup(
@@ -180,6 +185,9 @@ def render_evidence(evidence: dict, generated_files: list[str]) -> None:
         Text(""),
         Text.from_markup(f"[bold {t.TEXT}]Workflow completo[/bold {t.TEXT}]"),
         Text.from_markup(workflow),
+        Text(""),
+        Text.from_markup(f"[bold {t.TEXT}]Próximo passo[/bold {t.TEXT}]"),
+        Text.from_markup(f"[{t.CYAN}]{next_step}[/{t.CYAN}]"),
         Text(""),
         Text.from_markup(
             f"[bold {t.GREEN}]✓ Evidence Pack pronto.[/bold {t.GREEN}] "

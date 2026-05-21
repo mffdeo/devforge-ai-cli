@@ -7,7 +7,7 @@ from devforge_ai_cli.core.config import DevForgeConfig, write_config
 from devforge_ai_cli.core.git import detect_project_name
 from devforge_ai_cli.core.paths import get_audit_file, get_config_file, get_devforge_dir
 
-SUBDIRS = ["prcp", "context", "plans", "policy", "evidence", "audit"]
+SUBDIRS = ["prcp", "context", "plans", "policy", "evidence", "pr", "audit"]
 
 
 def run_init(plain: bool, output_json: bool, cwd: Path | None = None) -> None:
