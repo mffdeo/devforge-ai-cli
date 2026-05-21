@@ -74,7 +74,8 @@ def policy_check(
     output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
 ) -> None:
     """Evaluate current diff against local policies."""
-    policy_cmd.run_policy_check(diff=diff, plain=plain, output_json=output_json)
+    exit_code = policy_cmd.run_policy_check(diff=diff, plain=plain, output_json=output_json)
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()
