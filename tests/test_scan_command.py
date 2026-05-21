@@ -5,7 +5,12 @@ import pytest
 
 from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.scan import run_scan_cmd
-from devforge_ai_cli.core.scanner import _detect_sensitive_areas, _detect_stack
+from devforge_ai_cli.core.scanner import (
+    _detect_database_signals,
+    _detect_sensitive_areas,
+    _detect_stack,
+    run_scan,
+)
 
 
 def _init(tmp_path: Path) -> None:
@@ -95,6 +100,75 @@ def test_scan_detects_login_by_content(tmp_path):
     (tmp_path / "routes.py").write_text("def login_user(): pass")
     areas = _detect_sensitive_areas(tmp_path)
     assert "login" in areas
+
+
+def test_scan_detects_db_create_py_as_database_signal(tmp_path):
+    (tmp_path / "db_create.py").write_text("# nothing useful here")
+    _, extra_areas = _detect_database_signals(tmp_path)
+    assert "database" in extra_areas
+
+
+def test_scan_detects_sqlite_content(tmp_path):
+    (tmp_path / "app.py").write_text(
+        "import sqlite3\n"
+        "conn = sqlite3.connect('todo.db')\n"
+    )
+    extra_db, extra_areas = _detect_database_signals(tmp_path)
+    assert "database" in extra_areas
+    assert "sqlite" in extra_areas
+    assert "SQLite" in extra_db
+
+
+def test_scan_detects_create_table_in_schema_sql(tmp_path):
+    (tmp_path / "schema.sql").write_text(
+        "CREATE TABLE users (id INTEGER PRIMARY KEY, email TEXT);\n"
+    )
+    _, extra_areas = _detect_database_signals(tmp_path)
+    assert "database" in extra_areas
+    assert "schema" in extra_areas
+
+
+def test_scan_detects_alembic_directory(tmp_path):
+    (tmp_path / "alembic").mkdir()
+    _, extra_areas = _detect_database_signals(tmp_path)
+    assert "database" in extra_areas
+
+
+def test_scan_detects_sqlite_file_suffix(tmp_path):
+    (tmp_path / "todo.sqlite3").write_text("")
+    extra_db, extra_areas = _detect_database_signals(tmp_path)
+    assert "database" in extra_areas
+    assert "sqlite" in extra_areas
+    assert "SQLite" in extra_db
+
+
+def test_scan_has_database_true_on_flask_todo_like_project(tmp_path):
+    """Regression test: a small Flask project with db_create.py + sqlite must
+    surface has_database=True and 'database' in sensitive_areas."""
+    _init(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname="todo"\ndependencies = ["flask"]\n'
+    )
+    (tmp_path / "db_create.py").write_text(
+        "import sqlite3\n"
+        "conn = sqlite3.connect('todo.db')\n"
+        "conn.execute('CREATE TABLE todos (id INTEGER PRIMARY KEY)')\n"
+    )
+    result = run_scan("todo", tmp_path)
+    assert result.signals["has_database"] is True
+    assert "database" in result.sensitive_areas
+    assert "SQLite" in result.databases_detected
+
+
+def test_scan_database_alone_does_not_elevate_to_hardened(tmp_path):
+    """Having a database without auth/personal-data must NOT elevate the
+    initial scan to Hardened — the signal stays available for policy check."""
+    _init(tmp_path)
+    (tmp_path / "schema.sql").write_text("CREATE TABLE foo (id INT);\n")
+    (tmp_path / "db.py").write_text("import sqlite3\n")
+    result = run_scan("db-only", tmp_path)
+    assert result.signals["has_database"] is True
+    assert result.task_elevation != "Hardened"
 
 
 def test_scan_detects_permission_by_folder_name(tmp_path):

@@ -28,6 +28,27 @@ _DB_MAP = {
 
 _SCAN_EXTENSIONS = {".py", ".ts", ".tsx", ".js", ".jsx", ".yml", ".yaml", ".json", ".toml"}
 
+# ── Database heuristics ───────────────────────────────────────────────────────
+# Filenames, directories, suffixes, and content patterns that indicate the
+# project owns a database (schema, migrations, connection layer). These signals
+# expand has_database beyond the package.json / docker-compose detection and
+# also feed sensitive_areas so that policy check can react when the diff
+# touches them.
+
+_DB_FILENAMES = {
+    "db_create.py", "db.py", "database.py", "models.py", "schema.sql",
+}
+_DB_DIRS = {"migrations", "migration", "alembic"}
+_DB_SUFFIXES = (".sqlite", ".sqlite3", ".db")
+_DB_CONTENT_EXTS = _SCAN_EXTENSIONS | {".sql"}
+_DB_CONTENT_PATTERNS = (
+    "sqlite3", "sqlite", "sqlalchemy",
+    "create table", "alter table", "drop table", "insert into",
+    "db.create_all", "connect(",
+)
+_DB_SQLITE_TOKENS = {"sqlite", "sqlite3"}
+_DB_SCHEMA_TOKENS = {"create table", "alter table", "drop table"}
+
 
 @dataclass
 class ScanResult:
@@ -128,6 +149,70 @@ def _has_tests(base: Path) -> bool:
     )
 
 
+def _detect_database_signals(base: Path) -> tuple[list[str], set[str]]:
+    """Look for filename/dir/content signals that indicate a database.
+
+    Returns (extra_databases, extra_areas):
+      - extra_databases: extra labels for ScanResult.databases_detected
+        (SQLite is added when SQLite-specific signals appear).
+      - extra_areas: subset of {'database', 'sqlite', 'schema'} to merge
+        into sensitive_areas so downstream consumers (planner, policy
+        check) can react when the diff touches DB code.
+    """
+    saw_db = False
+    saw_sqlite = False
+    saw_schema = False
+
+    for path in base.rglob("*"):
+        if any(skip in path.parts for skip in _SKIP_DIRS):
+            continue
+
+        name = path.name.lower()
+
+        if path.is_dir():
+            if name in _DB_DIRS:
+                saw_db = True
+            continue
+
+        if not path.is_file():
+            continue
+
+        if name in _DB_FILENAMES:
+            saw_db = True
+            if name == "schema.sql":
+                saw_schema = True
+
+        for suf in _DB_SUFFIXES:
+            if name.endswith(suf):
+                saw_db = True
+                saw_sqlite = True
+                break
+
+        if path.suffix.lower() in _DB_CONTENT_EXTS:
+            try:
+                with open(path, "r", errors="ignore") as f:
+                    content = f.read(8192).lower()
+            except (OSError, PermissionError):
+                continue
+            for pat in _DB_CONTENT_PATTERNS:
+                if pat in content:
+                    saw_db = True
+                    if pat in _DB_SQLITE_TOKENS:
+                        saw_sqlite = True
+                    if pat in _DB_SCHEMA_TOKENS:
+                        saw_schema = True
+
+    extra_databases: list[str] = ["SQLite"] if saw_sqlite else []
+    extra_areas: set[str] = set()
+    if saw_db:
+        extra_areas.add("database")
+    if saw_sqlite:
+        extra_areas.add("sqlite")
+    if saw_schema:
+        extra_areas.add("schema")
+    return extra_databases, extra_areas
+
+
 def _detect_sensitive_areas(base: Path) -> list[str]:
     found: set[str] = set()
 
@@ -174,6 +259,8 @@ def _compute_signals(
         else "low"
     )
 
+    has_database = bool(databases) or bool(sa & {"database", "sqlite", "schema"})
+
     return {
         "touches_auth": touches_auth,
         "personal_data_possible": personal_data,
@@ -182,7 +269,7 @@ def _compute_signals(
         "has_ci": ci is not None,
         "has_tests": _has_tests(base),
         "has_docker": any("docker" in s.lower() for s in stack),
-        "has_database": bool(databases),
+        "has_database": has_database,
     }
 
 
@@ -190,10 +277,13 @@ def _calculate_prcp(signals: dict, stack: list[str]) -> tuple[str, str]:
     has_real_app = len(stack) >= 2
     baseline = "Standard" if has_real_app else "Minimal"
 
+    # Having a database alone does not elevate to Hardened in the initial
+    # scan. The signal stays in `has_database` / sensitive_areas so the
+    # policy check can elevate when a diff actually touches db_create.py,
+    # migrations or schema.
     elevates = (
         signals.get("touches_auth")
         or signals.get("personal_data_possible")
-        or signals.get("has_database")
     )
     elevation = "Hardened" if elevates else baseline
     return baseline, elevation
@@ -264,7 +354,11 @@ def _write_scan_files(base: Path, result: ScanResult) -> list[str]:
 
 def run_scan(project_name: str, base: Path) -> ScanResult:
     stack, ci, databases = _detect_stack(base)
-    sensitive_areas = _detect_sensitive_areas(base)
+    extra_db, extra_db_areas = _detect_database_signals(base)
+    for label in extra_db:
+        if label not in databases:
+            databases.append(label)
+    sensitive_areas = sorted(set(_detect_sensitive_areas(base)) | extra_db_areas)
     signals = _compute_signals(sensitive_areas, stack, ci, databases, base)
     baseline, elevation = _calculate_prcp(signals, stack)
 
