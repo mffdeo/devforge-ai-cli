@@ -54,7 +54,7 @@ def scan(
     output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
 ) -> None:
     """Scan repository for stack, CI and risk signals."""
-    scan_cmd.run_scan(plain=plain, output_json=output_json)
+    scan_cmd.run_scan_cmd(plain=plain, output_json=output_json)
 
 
 @app.command()
