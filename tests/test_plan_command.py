@@ -7,6 +7,8 @@ from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.plan import run_plan
 from devforge_ai_cli.commands.scan import run_scan_cmd
 from devforge_ai_cli.core.planner import (
+    classify_spec_domain,
+    compute_effective_prcp,
     determine_policy,
     generate_tasks,
     parse_spec,
@@ -42,6 +44,26 @@ Exibir métricas gerais do sistema.
 ## Critérios de aceite
 
 - AC-001: Dashboard carrega em menos de 2s.
+"""
+
+
+SPEC_PRIORITY_CONTENT = """\
+# SPEC-PRIORITY-001 — Prioridade em tarefas
+
+## Objetivo
+
+Adicionar prioridade às tarefas de um Todo App Flask/SQLite.
+
+## Critérios de aceite
+
+- AC-001: Toda tarefa tem um campo prioridade.
+- AC-002: A prioridade padrão é Média.
+- AC-003: A lista exibe a prioridade junto da tarefa.
+
+## Riscos
+
+- Toca o schema SQLite (CREATE TABLE / ALTER TABLE).
+- Migração leve do banco local.
 """
 
 
@@ -194,6 +216,81 @@ def test_plan_generates_auth_tasks_for_auth_spec(tmp_path):
     assert len(tasks) == 5
     assert all("id" in t and "description" in t for t in tasks)
     assert any("auth" in t["description"].lower() or "permiss" in t["description"].lower() for t in tasks)
+
+
+# ── SPEC-PRIORITY: domain classification, tasks, PRCP, policy ────────────────
+
+def test_classify_priority_spec_is_task_priority_with_db(tmp_path):
+    spec_data = {"content": SPEC_PRIORITY_CONTENT, "sections": {}}
+    domain, touches_database = classify_spec_domain(spec_data, profile={})
+    assert domain == "task_priority"
+    assert touches_database is True
+
+
+def test_plan_priority_spec_does_not_generate_auth_tasks(tmp_path):
+    profile = {"sensitive_areas": ["database", "sqlite"], "signals": {"has_database": True}}
+    spec_data = {"content": SPEC_PRIORITY_CONTENT, "sections": {}}
+    tasks = generate_tasks("SPEC-PRIORITY-001", spec_data, profile)
+    joined = " ".join(t["description"].lower() for t in tasks)
+    assert "autenticação" not in joined
+    assert "permissões e papéis" not in joined
+    assert "auth" not in joined
+
+
+def test_plan_priority_spec_generates_priority_tasks(tmp_path):
+    profile = {"sensitive_areas": ["database", "sqlite"], "signals": {"has_database": True}}
+    spec_data = {"content": SPEC_PRIORITY_CONTENT, "sections": {}}
+    tasks = generate_tasks("SPEC-PRIORITY-001", spec_data, profile)
+    ids = [t["id"] for t in tasks]
+    joined = " ".join(t["description"].lower() for t in tasks)
+    assert ids[0] == "TASK-PRIORITY-001"
+    assert any("prioridade" in t["description"].lower() for t in tasks)
+    assert any("tarefa" in t["description"].lower() for t in tasks)
+    assert "schema sqlite" in joined or "schema" in joined
+
+
+def test_plan_priority_spec_applies_hardened_prcp(tmp_path):
+    profile = {"prcp": {"task_elevation": "Standard"}, "signals": {}, "sensitive_areas": []}
+    spec_data = {"content": SPEC_PRIORITY_CONTENT, "sections": {}}
+    effective = compute_effective_prcp(profile, spec_data)
+    assert effective == "Hardened"
+
+
+def test_plan_priority_spec_requires_approval_and_human_review(tmp_path):
+    profile = {"prcp": {"task_elevation": "Standard"}, "signals": {}, "sensitive_areas": []}
+    spec_data = {"content": SPEC_PRIORITY_CONTENT, "sections": {}}
+    decision, required = determine_policy(profile, spec_data)
+    assert decision == "REQUIRE_APPROVAL"
+    assert "test_report" in required
+    assert "human_review" in required
+    assert "rollback_plan" in required
+    assert "audit_log" in required
+
+
+def test_plan_priority_spec_end_to_end(tmp_path):
+    """Run the actual command and inspect generated artifacts."""
+    _init_and_scan(tmp_path)
+    spec = _make_spec(tmp_path, content=SPEC_PRIORITY_CONTENT, name="SPEC-PRIORITY-001.md")
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+
+    plan_md = (tmp_path / ".devforge" / "plans" / "PLAN-SPEC-PRIORITY-001.md").read_text()
+    assert "Hardened" in plan_md
+    assert "autenticação" not in plan_md.lower()
+    assert "prioridade" in plan_md.lower()
+
+    pol = json.loads(
+        (tmp_path / ".devforge" / "policy" / "POLICY-DECISION-SPEC-PRIORITY-001.json").read_text()
+    )
+    assert pol["decision"] == "REQUIRE_APPROVAL"
+    assert pol["prcp_level"] == "Hardened"
+    assert "human_review" in pol["required_evidence"]
+    assert "rollback_plan" in pol["required_evidence"]
+
+    ctx = (tmp_path / ".devforge" / "context" / "context-pack.md").read_text()
+    assert "schema local" in ctx
+    # blocked uses still bloqueando segredos/tokens/senhas/dados pessoais
+    for blocked in ("segredos reais", "tokens de produção", "senhas", "dados pessoais brutos"):
+        assert blocked in ctx
 
 
 # ── output modes ──────────────────────────────────────────────────────────────

@@ -27,8 +27,11 @@ BLOCKED_USES = [
 ]
 
 _AUTH_KWS = {"auth", "login", "logout", "jwt", "token", "password", "secret", "rbac", "role", "roles", "permission", "permissions"}
+_AUTH_EXTRA_TERMS = {"senha", "sessão", "session"}
 _PAYMENT_KWS = {"payment", "billing", "pagamento", "cobrança"}
 _DB_KWS = {"migration", "database", "schema", "migrate"}
+_DB_EXTRA_TERMS = {"banco", "sqlite", "tabela", "create table", "alter table", "drop table"}
+_TASK_PRIORITY_TERMS = {"prioridade", "priority", "tarefa", "task", "todo"}
 
 _TASK_TEMPLATES: dict[str, list[tuple[str, str]]] = {
     "auth": [
@@ -52,6 +55,14 @@ _TASK_TEMPLATES: dict[str, list[tuple[str, str]]] = {
         ("Preparar rollback plan", "rollback"),
         ("Solicitar revisão humana", "review"),
     ],
+    "task_priority": [
+        ("Mapear modelo atual de tarefas", "arch"),
+        ("Adicionar campo de prioridade ao schema SQLite", "schema"),
+        ("Atualizar formulário de criação de tarefa", "ui"),
+        ("Exibir prioridade na lista de tarefas", "ui"),
+        ('Definir valor padrão "Média"', "config"),
+        ("Preparar testes manuais e rollback plan", "rollback"),
+    ],
     "generic": [
         ("Revisar escopo e critérios de aceite", "review"),
         ("Mapear dependências e impacto", "arch"),
@@ -60,6 +71,63 @@ _TASK_TEMPLATES: dict[str, list[tuple[str, str]]] = {
         ("Solicitar revisão humana", "review"),
     ],
 }
+
+
+def _spec_lower(spec_data: dict) -> str:
+    return spec_data.get("content", "").lower()
+
+
+def classify_spec_domain(spec_data: dict, profile: dict | None = None) -> tuple[str, bool]:
+    """Infer SPEC domain and whether it touches a database.
+
+    Returns (domain, touches_database) where domain is one of:
+      'auth', 'payment', 'task_priority', 'generic_feature'.
+
+    touches_database is True when the SPEC text or the scan profile show
+    signs of database/schema work (sqlite, CREATE TABLE, migrations, ...).
+    """
+    profile = profile or {}
+    content = _spec_lower(spec_data)
+    sensitive = set(profile.get("sensitive_areas", []))
+    signals = profile.get("signals", {})
+
+    touches_database = (
+        any(term in content for term in _DB_KWS | _DB_EXTRA_TERMS)
+        or bool(_DB_KWS & sensitive)
+        or bool({"database", "schema", "sqlite"} & sensitive)
+        or bool(signals.get("has_database", False))
+    )
+
+    if any(term in content for term in _AUTH_KWS | _AUTH_EXTRA_TERMS) or bool(_AUTH_KWS & sensitive):
+        return "auth", touches_database
+    if any(term in content for term in _PAYMENT_KWS) or bool(_PAYMENT_KWS & sensitive):
+        return "payment", touches_database
+    if any(term in content for term in _TASK_PRIORITY_TERMS):
+        return "task_priority", touches_database
+    return "generic_feature", touches_database
+
+
+def compute_effective_prcp(profile: dict, spec_data: dict) -> str:
+    """Return the PRCP the plan should apply, which can elevate the scan baseline.
+
+    Today the only elevation rule at plan time is: if the SPEC itself
+    declares database/schema work, the plan applies Hardened regardless
+    of the scan baseline. Auth/personal-data already elevate at scan time.
+    """
+    baseline = profile.get("prcp", {}).get("task_elevation", "Standard")
+    _, touches_database = classify_spec_domain(spec_data, profile)
+    if touches_database:
+        return "Hardened"
+    return baseline
+
+
+def compute_allowed_uses(spec_data: dict, profile: dict | None = None) -> list[str]:
+    """Allowed uses for the Context Pack, expanded when the SPEC needs them."""
+    uses = list(ALLOWED_USES)
+    _, touches_database = classify_spec_domain(spec_data, profile or {})
+    if touches_database and "schema local" not in uses:
+        uses.append("schema local")
+    return uses
 
 
 @dataclass
@@ -130,25 +198,11 @@ def parse_spec(spec_path: Path) -> dict[str, Any]:
 
 
 def generate_tasks(spec_id: str, spec_data: dict, profile: dict) -> list[dict]:
-    content = spec_data["content"].lower()
-    sensitive = set(profile.get("sensitive_areas", []))
-    signals = profile.get("signals", {})
-
-    is_auth = bool(_AUTH_KWS & sensitive) or any(k in content for k in _AUTH_KWS)
-    is_payment = bool(_PAYMENT_KWS & sensitive) or any(k in content for k in _PAYMENT_KWS)
-    is_db = bool(_DB_KWS & sensitive) or signals.get("has_database", False)
-
-    if is_auth:
-        key = "auth"
-    elif is_payment:
-        key = "payment"
-    elif is_db:
-        key = "database"
-    else:
-        key = "generic"
+    domain, _ = classify_spec_domain(spec_data, profile)
+    template_key = domain if domain in _TASK_TEMPLATES else "generic"
 
     prefix = _task_prefix(spec_id)
-    templates = _TASK_TEMPLATES[key]
+    templates = _TASK_TEMPLATES[template_key]
 
     return [
         {"id": f"TASK-{prefix}-{i:03d}", "description": desc, "type": typ}
@@ -157,25 +211,18 @@ def generate_tasks(spec_id: str, spec_data: dict, profile: dict) -> list[dict]:
 
 
 def determine_policy(profile: dict, spec_data: dict) -> tuple[str, list[str]]:
+    domain, touches_database = classify_spec_domain(spec_data, profile)
+    effective_prcp = compute_effective_prcp(profile, spec_data)
     signals = profile.get("signals", {})
-    prcp = profile.get("prcp", {})
-    task_elevation = prcp.get("task_elevation", "Standard")
-    content = spec_data["content"].lower()
 
-    hardened = task_elevation == "Hardened"
-    touches_auth = signals.get("touches_auth", False)
+    hardened = effective_prcp == "Hardened"
+    touches_auth = signals.get("touches_auth", False) or domain == "auth"
     personal_data = signals.get("personal_data_possible", False)
-    has_db = signals.get("has_database", False)
+    spec_has_risk = domain in {"auth", "payment"}
 
-    # also check spec content for explicit risk keywords
-    spec_has_risk = any(k in content for k in _AUTH_KWS | _PAYMENT_KWS)
-
-    if hardened or touches_auth or personal_data or spec_has_risk:
+    if hardened or touches_auth or personal_data or spec_has_risk or touches_database:
         decision = PolicyDecision.REQUIRE_APPROVAL
         required = ["test_report", "human_review", "rollback_plan", "audit_log"]
-    elif has_db:
-        decision = PolicyDecision.REQUIRE_APPROVAL
-        required = ["test_report", "rollback_plan", "audit_log"]
     else:
         decision = PolicyDecision.ALLOW
         required = ["audit_log"]
@@ -257,9 +304,10 @@ def generate_plan(spec_path: Path, base: Path) -> PlanResult:
     if profile_path.exists():
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
 
-    prcp_level = profile.get("prcp", {}).get("task_elevation", "Standard")
+    prcp_level = compute_effective_prcp(profile, spec_data)
     tasks = generate_tasks(spec_id, spec_data, profile)
     policy_decision, required_evidence = determine_policy(profile, spec_data)
+    allowed_uses = compute_allowed_uses(spec_data, profile)
 
     result = PlanResult(
         spec_id=spec_id,
@@ -270,7 +318,7 @@ def generate_plan(spec_path: Path, base: Path) -> PlanResult:
         prcp_level=prcp_level,
         policy_decision=policy_decision,
         tasks=tasks,
-        allowed_uses=ALLOWED_USES,
+        allowed_uses=allowed_uses,
         blocked_uses=BLOCKED_USES,
         required_evidence=required_evidence,
     )
