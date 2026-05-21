@@ -233,6 +233,27 @@ def test_scan_prefers_auth_spec_when_sensitive_areas_match(tmp_path):
     assert result.suggested_next_spec == "specs/SPEC-AUTH-001.md"
 
 
+def test_scan_plain_shows_banco_detectado_for_sqlite_project(tmp_path, capsys):
+    _init(tmp_path)
+    (tmp_path / "pyproject.toml").write_text(
+        '[project]\nname="todo"\ndependencies = ["flask"]\n'
+    )
+    (tmp_path / "db_create.py").write_text("import sqlite3\nsqlite3.connect('todo.db')\n")
+    capsys.readouterr()
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+    assert "Banco detectado: SQLite" in out
+
+
+def test_scan_plain_omits_banco_detectado_when_no_db(tmp_path, capsys):
+    _init(tmp_path)
+    (tmp_path / "pyproject.toml").write_text('[project]\nname="empty"\n')
+    capsys.readouterr()
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+    assert "Banco detectado:" not in out
+
+
 def test_scan_does_not_suggest_auth_md_for_generic_project(tmp_path, capsys):
     _init(tmp_path)
     (tmp_path / "pyproject.toml").write_text(

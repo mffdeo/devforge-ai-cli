@@ -114,7 +114,7 @@ def render_scan(result: ScanResult) -> None:
     elevation_color = t.RED if result.task_elevation == "Hardened" else t.AMBER
     baseline_color = t.GREEN if result.baseline_level == "Standard" else t.MUTED
 
-    left = Group(
+    left_items = [
         Text.from_markup(
             f"[bold {t.CYAN}][DevForge][/bold {t.CYAN}] Escaneando repositório..."
         ),
@@ -127,6 +127,16 @@ def render_scan(result: ScanResult) -> None:
             f"[bold {t.GREEN}]✓[/bold {t.GREEN}] [{t.MUTED}]CI detectado:[/{t.MUTED}] "
             f"[bold {t.TEXT}]{ci_str}[/bold {t.TEXT}]"
         ),
+    ]
+
+    if result.databases_detected:
+        databases_str = " · ".join(result.databases_detected)
+        left_items.append(Text.from_markup(
+            f"[bold {t.GREEN}]✓[/bold {t.GREEN}] [{t.MUTED}]Banco detectado:[/{t.MUTED}] "
+            f"[bold {t.TEXT}]{databases_str}[/bold {t.TEXT}]"
+        ))
+
+    left_items.extend([
         Text.from_markup(
             f"[bold {t.GREEN}]✓[/bold {t.GREEN}] [{t.MUTED}]Áreas sensíveis encontradas:[/{t.MUTED}] "
             f"[{t.AMBER}]{sensitive_str}[/{t.AMBER}]"
@@ -149,7 +159,9 @@ def render_scan(result: ScanResult) -> None:
         Text(""),
         Text.from_markup(f"[bold {t.TEXT}]Próximos passos sugeridos[/bold {t.TEXT}]"),
         next_grid,
-    )
+    ])
+
+    left = Group(*left_items)
 
     left_panel = Panel(left, border_style=t.CYAN, padding=(1, 2))
     console.print(Columns([left_panel, _summary_panel(result)], equal=False, expand=True))

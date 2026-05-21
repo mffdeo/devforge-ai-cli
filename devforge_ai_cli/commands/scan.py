@@ -47,6 +47,8 @@ def run_scan_cmd(plain: bool, output_json: bool, cwd: Path | None = None) -> Non
         print(f"[DevForge] Stack detectada: {', '.join(result.detected_stack) or 'nenhuma'}")
         if result.ci_detected:
             print(f"[DevForge] CI detectado: {result.ci_detected}")
+        if result.databases_detected:
+            print(f"[DevForge] Banco detectado: {', '.join(result.databases_detected)}")
         print(f"[DevForge] Áreas sensíveis: {', '.join(result.sensitive_areas) or 'nenhuma'}")
         print(f"[DevForge] PRCP baseline: {result.baseline_level}")
         print(f"[DevForge] Elevação por tarefa: {result.task_elevation}")
