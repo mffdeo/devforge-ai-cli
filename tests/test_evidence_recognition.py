@@ -238,6 +238,97 @@ def test_implementation_brief_includes_expected_paths_per_evidence(tmp_path: Pat
     assert ".devforge/reviews/HUMAN-REVIEW-SPEC-PRIORITY-001.md" in brief
 
 
+# ── policy_check: dynamic issue id and recommended actions ───────────────────
+
+
+def test_policy_check_does_not_hardcode_issue_auth_001(tmp_path: Path, capsys):
+    _setup_priority(tmp_path)
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert "ISSUE-AUTH-001" not in data["next_step"]
+    assert not any("ISSUE-AUTH-001" in a for a in data["recommended_actions"])
+    assert data["evidence_issue_id"] == "SPEC-PRIORITY-001"
+
+
+def test_policy_check_next_step_uses_current_spec_id(tmp_path: Path, capsys):
+    _setup_priority(tmp_path)
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    assert data["next_step"] == "devforge evidence --issue SPEC-PRIORITY-001"
+    assert any(
+        "devforge evidence --issue SPEC-PRIORITY-001" in a
+        for a in data["recommended_actions"]
+    )
+
+
+def test_policy_check_omits_test_report_action_when_present(tmp_path: Path, capsys):
+    _setup_priority(tmp_path)
+    dd = get_devforge_dir(tmp_path)
+    (dd / "test-reports").mkdir(exist_ok=True)
+    (dd / "test-reports" / "SPEC-PRIORITY-001-manual.md").write_text("# manual\n")
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    actions = " | ".join(data["recommended_actions"])
+    assert "test_report" not in actions
+    assert "Rodar testes" not in actions
+
+
+def test_policy_check_omits_rollback_action_when_present(tmp_path: Path, capsys):
+    _setup_priority(tmp_path)
+    # Plant rollback so it counts as present
+    (tmp_path / "docs" / "rollback").mkdir(parents=True)
+    (tmp_path / "docs" / "rollback" / "SPEC-PRIORITY-001.md").write_text("# rb\n")
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py", "db_create.py"],
+        diff_content_override="--- a/db_create.py\n+++ b/db_create.py\n+CREATE TABLE x(id INT);\n",
+    )
+    data = json.loads(capsys.readouterr().out)
+    actions = " | ".join(data["recommended_actions"])
+    assert "rollback_plan" not in actions
+    assert "Criar rollback plan" not in actions
+
+
+def test_policy_check_includes_human_review_action_when_missing(tmp_path: Path, capsys):
+    _setup_priority(tmp_path)
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    actions = " | ".join(data["recommended_actions"])
+    assert "Solicitar revisão humana" in actions
+
+
+def test_policy_check_omits_human_review_action_when_present(tmp_path: Path, capsys):
+    _setup_priority(tmp_path)
+    dd = get_devforge_dir(tmp_path)
+    (dd / "reviews").mkdir(exist_ok=True)
+    (dd / "reviews" / "HUMAN-REVIEW-SPEC-PRIORITY-001.md").write_text("Approved\n")
+    capsys.readouterr()
+    run_policy_check(
+        diff=False, plain=False, output_json=True, cwd=tmp_path,
+        changed_files_override=["app.py"], diff_content_override="",
+    )
+    data = json.loads(capsys.readouterr().out)
+    actions = " | ".join(data["recommended_actions"])
+    assert "Solicitar revisão humana" not in actions
+
+
 # ── check_evidence dispatcher ────────────────────────────────────────────────
 
 

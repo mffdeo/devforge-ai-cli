@@ -68,6 +68,9 @@ def run_policy_check(
     )
 
     spec_id = existing_policy.get("spec_id")
+    # The issue id used by `devforge evidence --issue` defaults to the
+    # current SPEC id, so we never echo back a stale ISSUE-AUTH-001.
+    evidence_issue_id = spec_id or "<ISSUE-ID>"
     matches = evaluate_required_evidence(
         result["required_evidence"], base, devforge_dir, spec_id=spec_id
     )
@@ -85,6 +88,23 @@ def run_policy_check(
     missing_evidence = [k for k, v in evidence_status.items() if v == "missing"]
 
     review_request = check_review_request(base, devforge_dir)
+
+    # Rebuild recommended_actions so we only suggest evidences that are
+    # still missing. The engine emits the generic list per required item;
+    # we drop items already present and append a SPEC-specific evidence
+    # command at the end.
+    _action_by_evidence = {
+        "test_report": "Rodar testes e anexar test_report",
+        "human_review": "Solicitar revisão humana",
+        "rollback_plan": "Criar rollback plan",
+    }
+    recommended = [
+        _action_by_evidence[ev]
+        for ev in result["required_evidence"]
+        if ev in _action_by_evidence and evidence_status.get(ev) == "missing"
+    ]
+    recommended.append(f"Gerar evidence pack: devforge evidence --issue {evidence_issue_id}")
+    result["recommended_actions"] = recommended
 
     timestamp = datetime.now(timezone.utc).isoformat()
     prcp_level = profile.get("prcp", {}).get("task_elevation", "Standard")
@@ -134,7 +154,8 @@ def run_policy_check(
             "review_request_paths": review_request.matched_paths,
             "recommended_actions": result["recommended_actions"],
             "generated_files": generated_files,
-            "next_step": "devforge evidence --issue <ISSUE-ID>",
+            "evidence_issue_id": evidence_issue_id,
+            "next_step": f"devforge evidence --issue {evidence_issue_id}",
         }))
     elif plain:
         print(f"[DevForge] Decision: {result['decision']}")
@@ -159,9 +180,17 @@ def run_policy_check(
                 f"  - review_request: present → {', '.join(review_request.matched_paths)} "
                 "(não substitui human_review aprovado)"
             )
+        if result["recommended_actions"]:
+            print("Recommended actions:")
+            for action in result["recommended_actions"]:
+                print(f"  - {action}")
+        print(f"Next step: devforge evidence --issue {evidence_issue_id}")
         print(f"Exit code: {result['exit_code']}")
     else:
         from devforge_ai_cli.ui.renderers.policy_screen import render_policy
-        render_policy(result, evidence_status, result["files_count"], prcp_level, timestamp)
+        render_policy(
+            result, evidence_status, result["files_count"], prcp_level, timestamp,
+            evidence_issue_id=evidence_issue_id,
+        )
 
     return result["exit_code"]

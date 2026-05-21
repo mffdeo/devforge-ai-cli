@@ -107,6 +107,7 @@ def render_policy(
     files_count: int,
     prcp_level: str,
     timestamp: str,
+    evidence_issue_id: str = "<ISSUE-ID>",
 ) -> None:
     console.print()
     console.print(Panel(
@@ -161,7 +162,7 @@ def render_policy(
         ),
         Text.from_markup(
             f"[{t.MUTED}]Próximo passo:[/{t.MUTED}] "
-            f"[bold {t.CYAN}]devforge evidence --issue ISSUE-AUTH-001[/bold {t.CYAN}]"
+            f"[bold {t.CYAN}]devforge evidence --issue {evidence_issue_id}[/bold {t.CYAN}]"
         ),
     )
 
