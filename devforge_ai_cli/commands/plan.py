@@ -6,7 +6,7 @@ from devforge_ai_cli.core.paths import get_audit_file, get_devforge_dir
 from devforge_ai_cli.core.planner import generate_plan, parse_spec
 from devforge_ai_cli.core.project import require_init
 
-_DRAFT_WARNING = "SPEC status is Draft. Consider approving/reviewing before planning."
+_DRAFT_WARNING = "SPEC status is Draft. Consider resolving gray areas and approving it before planning."
 
 
 def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None) -> None:

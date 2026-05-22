@@ -64,6 +64,7 @@ def scan(
 @app.command()
 def specify(
     idea: str | None = typer.Option(None, "--idea", help="Feature idea to turn into a SPEC."),
+    spec: str | None = typer.Option(None, "--spec", help="Existing SPEC path to review or approve."),
     title: str | None = typer.Option(None, "--title", help="SPEC title override."),
     spec_id: str | None = typer.Option(None, "--spec-id", help="SPEC ID override."),
     agent: str = typer.Option("none", "--agent", help="External agent to refine the SPEC. Supported: none, codex, custom."),
@@ -78,6 +79,7 @@ def specify(
     """Turn a feature idea into a testable DevForge SPEC."""
     exit_code = specify_cmd.run_specify(
         idea=idea,
+        spec=spec,
         title=title,
         spec_id=spec_id,
         agent=agent,
