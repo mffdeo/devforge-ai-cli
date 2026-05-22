@@ -62,7 +62,7 @@ def _summary_panel(result: ScanResult) -> Panel:
         ("1", "Stack",      stack_summary),
         ("2", result.baseline_level, "Baseline PRCP"),
         ("3", "Sensibilidade", sensitive_summary),
-        ("4", "Próximo",    f"[{t.CYAN}]devforge plan[/{t.CYAN}] --spec {result.suggested_next_spec}"),
+        ("4", "Próximo",    f"[{t.CYAN}]{result.suggested_next_command}[/{t.CYAN}]"),
     ]
     for num, label, desc in rows:
         grid.add_row(num, label, desc)
@@ -106,7 +106,7 @@ def render_scan(result: ScanResult) -> None:
     steps = [
         ("1.", "Revisar paths sensíveis"),
         ("2.", f"Confirmar baseline PRCP [{t.AMBER}]{result.baseline_level}[/{t.AMBER}]"),
-        ("3.", f"Rodar: [{t.CYAN}]devforge plan --spec {result.suggested_next_spec}[/{t.CYAN}]"),
+        ("3.", f"Rodar: [{t.CYAN}]{result.suggested_next_command}[/{t.CYAN}]"),
     ]
     for num, step in steps:
         next_grid.add_row(num, step)

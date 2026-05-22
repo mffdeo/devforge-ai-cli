@@ -27,9 +27,13 @@ def _commands_panel() -> Panel:
     rows = [
         ("1", f"[bold {t.CYAN}]init[/bold {t.CYAN}]",         "Setup inicial do projeto"),
         ("2", f"[bold {t.TEXT}]scan[/bold {t.TEXT}]",          "Escaneia o repositório"),
-        ("3", f"[bold {t.TEXT}]plan[/bold {t.TEXT}]",          "Gera plano com spec"),
-        ("4", f"[bold {t.TEXT}]policy check[/bold {t.TEXT}]",  "Avalia política de conformidade"),
-        ("5", f"[bold {t.TEXT}]evidence[/bold {t.TEXT}]",      "Coleta e reporta evidências"),
+        ("3", f"[bold {t.TEXT}]specify[/bold {t.TEXT}]",       "Transforma ideia em SPEC"),
+        ("4", f"[bold {t.TEXT}]plan[/bold {t.TEXT}]",          "Gera plano com spec"),
+        ("5", f"[bold {t.TEXT}]implement[/bold {t.TEXT}]",     "Chama agente externo"),
+        ("6", f"[bold {t.TEXT}]policy check[/bold {t.TEXT}]",  "Avalia política de conformidade"),
+        ("7", f"[bold {t.TEXT}]review[/bold {t.TEXT}]",        "Registra revisão humana"),
+        ("8", f"[bold {t.TEXT}]evidence[/bold {t.TEXT}]",      "Coleta e reporta evidências"),
+        ("9", f"[bold {t.TEXT}]pr-ready[/bold {t.TEXT}]",      "Prepara commit e PR"),
     ]
     for num, cmd, desc in rows:
         grid.add_row(num, cmd, desc)

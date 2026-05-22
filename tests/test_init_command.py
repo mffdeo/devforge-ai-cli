@@ -51,6 +51,13 @@ def test_init_plain_output(tmp_path, capsys):
     assert "Setup concluído" in captured.out
 
 
+def test_init_screen_lists_new_flow_commands(tmp_path, capsys):
+    run_init(plain=False, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+    for command in ("specify", "implement", "review", "pr-ready"):
+        assert command in out
+
+
 def test_init_config_content(tmp_path):
     import yaml
     run_init(plain=True, output_json=False, cwd=tmp_path)

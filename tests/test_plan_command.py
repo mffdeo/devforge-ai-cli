@@ -466,6 +466,20 @@ def test_plan_plain_output(tmp_path, capsys):
     assert "PRCP" in out
 
 
+def test_plan_with_draft_spec_warns_but_continues(tmp_path, capsys):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(
+        tmp_path,
+        content="# SPEC-DRAFT-001 — Draft\n\nStatus: Draft\n\n## Objetivo\n\nValidar warning.",
+        name="SPEC-DRAFT-001.md",
+    )
+    capsys.readouterr()
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+    assert "SPEC status is Draft. Consider approving/reviewing before planning." in out
+    assert (tmp_path / ".devforge" / "plans" / "PLAN-SPEC-DRAFT-001.md").exists()
+
+
 # ── idempotency ───────────────────────────────────────────────────────────────
 
 def test_plan_is_idempotent(tmp_path):

@@ -195,21 +195,24 @@ def test_scan_json_output(tmp_path, capsys):
     assert "generated_files" in data
     assert "next_steps" in data
     assert "suggested_next_spec" in data
+    assert "suggested_next_command" in data
 
 
 # ── next-spec suggestion ──────────────────────────────────────────────────────
 
-def test_scan_suggests_example_spec_when_specs_dir_missing(tmp_path):
+def test_scan_without_specs_suggests_specify_when_specs_dir_missing(tmp_path):
     _init(tmp_path)
     result = run_scan("empty", tmp_path)
-    assert result.suggested_next_spec == "specs/SPEC-EXAMPLE-001.md"
+    assert result.suggested_next_spec is None
+    assert result.suggested_next_command == 'devforge specify --idea "Describe your feature idea"'
 
 
-def test_scan_suggests_example_spec_when_specs_dir_empty(tmp_path):
+def test_scan_without_specs_suggests_specify_when_specs_dir_empty(tmp_path):
     _init(tmp_path)
     (tmp_path / "specs").mkdir()
     result = run_scan("empty-specs", tmp_path)
-    assert result.suggested_next_spec == "specs/SPEC-EXAMPLE-001.md"
+    assert result.suggested_next_spec is None
+    assert result.suggested_next_command == 'devforge specify --idea "Describe your feature idea"'
 
 
 def test_scan_suggests_first_spec_alphabetically(tmp_path):
@@ -220,6 +223,7 @@ def test_scan_suggests_first_spec_alphabetically(tmp_path):
     (specs / "SPEC-ZZZ-999.md").write_text("# later")
     result = run_scan("with-specs", tmp_path)
     assert result.suggested_next_spec == "specs/SPEC-PRIORITY-001.md"
+    assert result.suggested_next_command == "devforge plan --spec specs/SPEC-PRIORITY-001.md"
 
 
 def test_scan_prefers_auth_spec_when_sensitive_areas_match(tmp_path):
@@ -264,6 +268,14 @@ def test_scan_does_not_suggest_auth_md_for_generic_project(tmp_path, capsys):
     data = json.loads(capsys.readouterr().out)
     assert data["suggested_next_spec"] != "specs/auth.md"
     assert "specs/auth.md" not in " ".join(data["next_steps"])
+
+
+def test_scan_plain_without_specs_suggests_specify(tmp_path, capsys):
+    _init(tmp_path)
+    capsys.readouterr()
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+    assert 'devforge specify --idea "Describe your feature idea"' in out
 
 
 def test_scan_plain_output(tmp_path, capsys):
