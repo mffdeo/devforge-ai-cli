@@ -1,4 +1,5 @@
 import json
+import re
 from pathlib import Path
 
 import pytest
@@ -44,6 +45,12 @@ def _write_fake_agent(tmp_path: Path) -> Path:
         "printf 'agent ok\\n'\n"
     )
     return fake
+
+
+def _normalize_cli_output(text: str) -> str:
+    text = re.sub(r"\x1b\[[0-9;]*m", "", text)
+    text = re.sub(r"[╭╮╰╯─│]", " ", text)
+    return " ".join(text.split())
 
 
 def test_implement_fails_without_devforge(tmp_path: Path):
@@ -223,8 +230,8 @@ def test_implement_next_step_is_policy_check(tmp_path: Path, capsys):
 def test_implement_help_uses_clear_descriptions():
     runner = CliRunner()
     result = runner.invoke(app, ["implement", "--help"])
+    output = _normalize_cli_output(result.output)
     assert result.exit_code == 0
-    assert "Call an external AI coding agent using the DevForge implementation brief." in result.output
-    assert "External agent to call. Supported: codex, custom." in result.output
-    assert "Shell command used when --agent custom is" in result.output
-    assert "selected." in result.output
+    assert "Call an external AI coding agent using the DevForge implementation brief." in output
+    assert "External agent to call. Supported: codex, custom." in output
+    assert "Shell command used when --agent custom is selected." in output
