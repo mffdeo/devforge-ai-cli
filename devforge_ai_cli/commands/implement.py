@@ -84,7 +84,7 @@ def run_implement(
         _emit(result, plain=plain, output_json=output_json)
         return 0
 
-    if not output_json:
+    if not plain and not output_json:
         _emit_preview(
             spec_id=spec_id,
             agent=agent,

@@ -2,7 +2,9 @@ import json
 from pathlib import Path
 
 import pytest
+from typer.testing import CliRunner
 
+from devforge_ai_cli.cli import app
 from devforge_ai_cli.commands.implement import run_implement
 from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.plan import run_plan
@@ -138,6 +140,48 @@ def test_implement_yes_executes_fake_command(tmp_path: Path):
     assert "Implemente a feature usando .devforge/context/implementation-brief-SPEC-PRIORITY-001.md" in prompt
 
 
+def test_implement_plain_has_single_clean_header_and_stdout(tmp_path: Path, capsys):
+    spec = _setup_planned(tmp_path)
+    capsys.readouterr()
+    rc = run_implement(
+        spec=str(spec),
+        agent="custom",
+        command="echo",
+        yes=True,
+        dry_run=False,
+        plain=True,
+        output_json=False,
+        cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.count("[DevForge] Implement") == 1
+    assert "[DevForge] Implementação por agente externo" not in out
+    assert "stdout:" in out
+    assert "Implemente a feature usando .devforge/context/implementation-brief-SPEC-PRIORITY-001.md" in out
+    assert "Next step: devforge policy check --diff" in out
+
+
+def test_implement_dry_run_plain_has_single_clean_header(tmp_path: Path, capsys):
+    spec = _setup_planned(tmp_path)
+    capsys.readouterr()
+    rc = run_implement(
+        spec=str(spec),
+        agent="custom",
+        command="echo",
+        yes=False,
+        dry_run=True,
+        plain=True,
+        output_json=False,
+        cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    assert rc == 0
+    assert out.count("[DevForge] Implement") == 1
+    assert "[DevForge] Implementação por agente externo" not in out
+    assert "dry_run: true" in out
+
+
 def test_implement_records_audit_events(tmp_path: Path):
     spec = _setup_planned(tmp_path)
     fake = _write_fake_agent(tmp_path)
@@ -174,3 +218,13 @@ def test_implement_next_step_is_policy_check(tmp_path: Path, capsys):
         cwd=tmp_path,
     )
     assert "Next step: devforge policy check --diff" in capsys.readouterr().out
+
+
+def test_implement_help_uses_clear_descriptions():
+    runner = CliRunner()
+    result = runner.invoke(app, ["implement", "--help"])
+    assert result.exit_code == 0
+    assert "Call an external AI coding agent using the DevForge implementation brief." in result.output
+    assert "External agent to call. Supported: codex, custom." in result.output
+    assert "Shell command used when --agent custom is" in result.output
+    assert "selected." in result.output
