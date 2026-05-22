@@ -27,6 +27,12 @@ CHANGED_FILES = [
     "app.py",
     "db_create.py",
     "templates/index.html",
+    "docs/",
+    "specs/",
+    ".devforge/",
+    ".devforge/audit/",
+    ".devforge/pr/",
+    ".devforge/pr/commit-plan-SPEC-PRIORITY-001.md",
     ".venv/bin/python",
     "todo.db",
     "__pycache__/app.cpython-312.pyc",
@@ -153,7 +159,9 @@ def test_pr_ready_generates_commit_plan_markdown(tmp_path: Path):
     commit_plan = tmp_path / ".devforge" / "pr" / "commit-plan-SPEC-PRIORITY-001.md"
     assert commit_plan.exists()
     content = commit_plan.read_text()
-    assert "Suggested Files To Commit" in content
+    assert "Required Files To Commit" in content
+    assert "Optional Files" in content
+    assert "Usually copy the PR body into the Pull Request instead of committing this file." in content
     assert 'git commit -m "feat: add task priority with DevForge evidence"' in content
 
 
@@ -198,6 +206,9 @@ def test_pr_ready_includes_application_files_and_evidence_in_suggested_files(tmp
     assert "- .devforge/reviews/HUMAN-REVIEW-SPEC-PRIORITY-001.md" in content
     assert "- .devforge/evidence/EVID-SPEC-PRIORITY-001.md" in content
     assert "- .devforge/evidence/EVID-SPEC-PRIORITY-001.json" in content
+    lines = content.splitlines()
+    assert "- docs/" not in lines
+    assert "- specs/" not in lines
 
 
 def test_pr_ready_excludes_local_env_cache_and_database_files(tmp_path: Path, capsys):
@@ -216,11 +227,63 @@ def test_pr_ready_excludes_local_env_cache_and_database_files(tmp_path: Path, ca
     assert "__pycache__/app.cpython-312.pyc" not in suggested
     assert "data.sqlite" not in suggested
     assert "cache.db" not in suggested
+    assert ".devforge/audit" not in suggested
+    assert ".devforge/pr" not in suggested
     assert ".venv/" in data["do_not_commit"]
     assert "*.db" in data["do_not_commit"]
     assert "*.sqlite" in data["do_not_commit"]
     assert "__pycache__/" in data["do_not_commit"]
     assert "*.pyc" in data["do_not_commit"]
+
+
+def test_pr_ready_does_not_suggest_docs_dir_when_specific_rollback_exists(
+    tmp_path: Path,
+    capsys,
+):
+    _setup_ready_evidence(tmp_path)
+    capsys.readouterr()
+    run_pr_ready(issue="SPEC-PRIORITY-001", plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    assert "docs/" not in data["suggested_files_to_commit"]
+    assert "docs/rollback/SPEC-PRIORITY-001.md" in data["suggested_files_to_commit"]
+
+
+def test_pr_ready_does_not_suggest_specs_dir_when_specific_spec_exists(
+    tmp_path: Path,
+    capsys,
+):
+    _setup_ready_evidence(tmp_path)
+    capsys.readouterr()
+    run_pr_ready(issue="SPEC-PRIORITY-001", plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    assert "specs/" not in data["suggested_files_to_commit"]
+    assert "specs/SPEC-PRIORITY-001.md" in data["suggested_files_to_commit"]
+
+
+def test_pr_ready_does_not_duplicate_parent_dir_and_child_file(
+    tmp_path: Path,
+    capsys,
+):
+    _setup_ready_evidence(tmp_path)
+    capsys.readouterr()
+    run_pr_ready(issue="SPEC-PRIORITY-001", plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    suggested = data["suggested_files_to_commit"]
+    assert len(suggested) == len(set(suggested))
+    for path in suggested:
+        prefix = path.rstrip("/") + "/"
+        assert not any(other != path and other.startswith(prefix) for other in suggested)
+
+
+def test_pr_ready_json_returns_deduplicated_suggested_files(tmp_path: Path, capsys):
+    _setup_ready_evidence(tmp_path)
+    capsys.readouterr()
+    run_pr_ready(issue="SPEC-PRIORITY-001", plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    assert data["suggested_files_to_commit"] == list(dict.fromkeys(data["suggested_files_to_commit"]))
+    assert ".devforge/pr/PR-SPEC-PRIORITY-001.md" in data["optional_files"]
+    assert ".devforge/pr/commit-plan-SPEC-PRIORITY-001.md" in data["optional_files"]
+    assert ".devforge/pr/commit-plan-SPEC-PRIORITY-001.md" not in data["suggested_files_to_commit"]
 
 
 def test_pr_ready_records_audit_event(tmp_path: Path):

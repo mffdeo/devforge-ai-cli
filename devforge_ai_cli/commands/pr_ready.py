@@ -98,6 +98,7 @@ def run_pr_ready(
     evidence_md_rel = str(evidence_md_path.relative_to(base))
 
     suggested_files = _suggested_files_to_commit(
+        base=base,
         evidence=evidence,
         spec_path=spec_path,
         evidence_paths=evidence_paths,
@@ -111,6 +112,9 @@ def run_pr_ready(
     pr_dir.mkdir(parents=True, exist_ok=True)
     pr_body_path = pr_dir / f"PR-{issue}.md"
     commit_plan_path = pr_dir / f"commit-plan-{issue}.md"
+    pr_body_rel = str(pr_body_path.relative_to(base))
+    commit_plan_rel = str(commit_plan_path.relative_to(base))
+    optional_files = [pr_body_rel, commit_plan_rel]
 
     title = _suggest_pr_title(issue, spec_path, base)
     summary = _spec_summary(spec_path, base) if spec_path else f"Change for {issue}."
@@ -131,12 +135,10 @@ def run_pr_ready(
         issue=issue,
         suggested_files=suggested_files,
         suggested_commit_message=suggested_commit_message,
+        optional_files=optional_files,
     )
     pr_body_path.write_text(pr_body, encoding="utf-8")
     commit_plan_path.write_text(commit_plan, encoding="utf-8")
-
-    pr_body_rel = str(pr_body_path.relative_to(base))
-    commit_plan_rel = str(commit_plan_path.relative_to(base))
 
     append_event(
         get_audit_file(base),
@@ -159,6 +161,7 @@ def run_pr_ready(
         "commit_plan_path": commit_plan_rel,
         "suggested_commit_message": suggested_commit_message,
         "suggested_files_to_commit": suggested_files,
+        "optional_files": optional_files,
         "do_not_commit": DO_NOT_COMMIT,
         "next_step": f"Open a pull request using {pr_body_rel}.",
     }
@@ -224,6 +227,7 @@ def _not_ready_result(
         "commit_plan_path": None,
         "suggested_commit_message": None,
         "suggested_files_to_commit": [],
+        "optional_files": [],
         "do_not_commit": DO_NOT_COMMIT,
         "next_step": "Run: " + " && ".join(commands),
         "reasons": reasons,
@@ -238,24 +242,63 @@ def _first_existing_rel(base: Path, candidates: list[Path]) -> str | None:
     return None
 
 
-def _allowed_governance_path(path: str) -> bool:
+def _normalize_rel_path(path: str) -> str:
+    return path.replace("\\", "/").strip()
+
+
+def _is_directory_like(path: str, base: Path | None = None) -> bool:
+    if path.endswith("/"):
+        return True
+    return bool(base and (base / path).is_dir())
+
+
+def _allowed_governance_file(path: str) -> bool:
     return path.startswith((
         ".devforge/test-reports/",
         ".devforge/reviews/",
         ".devforge/evidence/",
-    ))
+    )) and not _is_directory_like(path)
 
 
-def _should_suggest(path: str) -> bool:
-    return _allowed_governance_path(path) or not should_ignore_path(path)
+def _blocked_governance_path(path: str) -> bool:
+    return path.startswith(".devforge/") and not _allowed_governance_file(path)
 
 
-def _append_unique(paths: list[str], path: str | None) -> None:
-    if path and path not in paths and _should_suggest(path):
-        paths.append(path)
+def _should_suggest(path: str, base: Path | None = None) -> bool:
+    if not path:
+        return False
+    if _blocked_governance_path(path):
+        return False
+    if _allowed_governance_file(path):
+        return True
+    if should_ignore_path(path):
+        return False
+    if _is_directory_like(path, base):
+        return False
+    return True
+
+
+def _append_unique(paths: list[str], path: str | None, base: Path | None = None) -> None:
+    if not path:
+        return
+    normalized = _normalize_rel_path(path)
+    if normalized not in paths and _should_suggest(normalized, base):
+        paths.append(normalized)
+
+
+def _dedupe_parent_child(paths: list[str]) -> list[str]:
+    deduped = list(dict.fromkeys(_normalize_rel_path(path) for path in paths))
+    out: list[str] = []
+    for path in deduped:
+        prefix = path.rstrip("/") + "/"
+        if any(other != path and other.startswith(prefix) for other in deduped):
+            continue
+        out.append(path)
+    return out
 
 
 def _suggested_files_to_commit(
+    base: Path,
     evidence: dict,
     spec_path: str | None,
     evidence_paths: dict[str, list[str]],
@@ -271,14 +314,14 @@ def _suggested_files_to_commit(
     for path in evidence.get("changed_files", []):
         if path == spec_path or path in evidence_file_set:
             continue
-        _append_unique(files, path)
-    _append_unique(files, spec_path)
+        _append_unique(files, path, base)
+    _append_unique(files, spec_path, base)
     for name in ("rollback_plan", "test_report", "human_review"):
         for path in evidence_paths.get(name, []):
-            _append_unique(files, path)
-    _append_unique(files, evidence_md_rel)
-    _append_unique(files, evidence_json_rel)
-    return files
+            _append_unique(files, path, base)
+    _append_unique(files, evidence_md_rel, base)
+    _append_unique(files, evidence_json_rel, base)
+    return _dedupe_parent_child(files)
 
 
 def _read_text_if_exists(base: Path, rel_path: str | None) -> str:
@@ -419,17 +462,25 @@ def _render_commit_plan(
     issue: str,
     suggested_files: list[str],
     suggested_commit_message: str,
+    optional_files: list[str],
 ) -> str:
     files_md = "\n".join(f"- {path}" for path in suggested_files) or "- none"
+    optional_md = "\n".join(f"- {path}" for path in optional_files) or "- none"
     do_not_commit_md = "\n".join(f"- {path}" for path in DO_NOT_COMMIT)
     git_add = "git add " + " ".join(suggested_files) if suggested_files else "git add <files>"
     git_commit = f'git commit -m "{suggested_commit_message}"'
 
     return f"""# Commit Plan — {issue}
 
-## Suggested Files To Commit
+## Required Files To Commit
 
 {files_md}
+
+## Optional Files
+
+{optional_md}
+
+Usually copy the PR body into the Pull Request instead of committing this file.
 
 ## Do Not Commit
 
@@ -467,9 +518,14 @@ def _emit(result: dict, plain: bool, output_json: bool) -> None:
 
     print("DevForge PR Ready Pack gerado")
     print()
-    print("Suggested files to commit:")
+    print("Required files to commit:")
     for path in result["suggested_files_to_commit"]:
         print(f"- {path}")
+    print()
+    print("Optional files:")
+    for path in result["optional_files"]:
+        print(f"- {path}")
+    print("Usually copy the PR body into the Pull Request instead of committing this file.")
     print()
     print("Do not commit:")
     for path in result["do_not_commit"]:
