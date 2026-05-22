@@ -161,8 +161,13 @@ def test_pr_ready_generates_commit_plan_markdown(tmp_path: Path):
     content = commit_plan.read_text()
     assert "Required Files To Commit" in content
     assert "Optional Files" in content
-    assert "Usually copy the PR body into the Pull Request instead of committing this file." in content
+    assert "Copy/paste git add" in content
+    assert "Optional git add" in content
+    assert "Usually copy the PR body into the Pull Request instead of committing these files." in content
+    assert "git add app.py" in content
+    assert "git add .devforge/pr/PR-SPEC-PRIORITY-001.md" in content
     assert 'git commit -m "feat: add task priority with DevForge evidence"' in content
+    assert "git push -u origin HEAD" in content
 
 
 def test_pr_ready_json_returns_ready_for_pr_true_when_evidence_is_approved(
@@ -182,6 +187,8 @@ def test_pr_ready_json_returns_ready_for_pr_true_when_evidence_is_approved(
     assert data["ready_for_pr"] is True
     assert data["status"] == "ready_for_merge"
     assert data["final_decision"] == "approved_with_human_review"
+    assert data["git_commit_command"] == 'git commit -m "feat: add task priority with DevForge evidence"'
+    assert data["git_push_command"] == "git push -u origin HEAD"
 
 
 def test_pr_ready_includes_application_files_and_evidence_in_suggested_files(tmp_path: Path):
@@ -284,6 +291,39 @@ def test_pr_ready_json_returns_deduplicated_suggested_files(tmp_path: Path, caps
     assert ".devforge/pr/PR-SPEC-PRIORITY-001.md" in data["optional_files"]
     assert ".devforge/pr/commit-plan-SPEC-PRIORITY-001.md" in data["optional_files"]
     assert ".devforge/pr/commit-plan-SPEC-PRIORITY-001.md" not in data["suggested_files_to_commit"]
+
+
+def test_pr_ready_plain_includes_copy_paste_git_commands(tmp_path: Path, capsys):
+    _setup_ready_evidence(tmp_path)
+    capsys.readouterr()
+    run_pr_ready(issue="SPEC-PRIORITY-001", plain=True, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+    assert "Copy/paste git add:" in out
+    assert "git add app.py" in out
+    assert 'git commit -m "feat: add task priority with DevForge evidence"' in out
+    assert "Suggested push:" in out
+    assert "git push -u origin HEAD" in out
+
+
+def test_pr_ready_json_includes_git_add_commands(tmp_path: Path, capsys):
+    _setup_ready_evidence(tmp_path)
+    capsys.readouterr()
+    run_pr_ready(issue="SPEC-PRIORITY-001", plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    assert "git add app.py" in data["git_add_commands"]
+    assert "git add specs/SPEC-PRIORITY-001.md" in data["git_add_commands"]
+
+
+def test_pr_ready_json_includes_optional_git_add_commands(tmp_path: Path, capsys):
+    _setup_ready_evidence(tmp_path)
+    capsys.readouterr()
+    run_pr_ready(issue="SPEC-PRIORITY-001", plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+    assert "git add .devforge/pr/PR-SPEC-PRIORITY-001.md" in data["optional_git_add_commands"]
+    assert (
+        "git add .devforge/pr/commit-plan-SPEC-PRIORITY-001.md"
+        in data["optional_git_add_commands"]
+    )
 
 
 def test_pr_ready_records_audit_event(tmp_path: Path):

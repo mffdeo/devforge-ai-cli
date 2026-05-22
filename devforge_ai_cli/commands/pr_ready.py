@@ -115,6 +115,10 @@ def run_pr_ready(
     pr_body_rel = str(pr_body_path.relative_to(base))
     commit_plan_rel = str(commit_plan_path.relative_to(base))
     optional_files = [pr_body_rel, commit_plan_rel]
+    git_add_commands = _git_add_commands(suggested_files)
+    optional_git_add_commands = _git_add_commands(optional_files)
+    git_commit_command = f'git commit -m "{suggested_commit_message}"'
+    git_push_command = "git push -u origin HEAD"
 
     title = _suggest_pr_title(issue, spec_path, base)
     summary = _spec_summary(spec_path, base) if spec_path else f"Change for {issue}."
@@ -136,6 +140,10 @@ def run_pr_ready(
         suggested_files=suggested_files,
         suggested_commit_message=suggested_commit_message,
         optional_files=optional_files,
+        git_add_commands=git_add_commands,
+        optional_git_add_commands=optional_git_add_commands,
+        git_commit_command=git_commit_command,
+        git_push_command=git_push_command,
     )
     pr_body_path.write_text(pr_body, encoding="utf-8")
     commit_plan_path.write_text(commit_plan, encoding="utf-8")
@@ -162,6 +170,10 @@ def run_pr_ready(
         "suggested_commit_message": suggested_commit_message,
         "suggested_files_to_commit": suggested_files,
         "optional_files": optional_files,
+        "git_add_commands": git_add_commands,
+        "optional_git_add_commands": optional_git_add_commands,
+        "git_commit_command": git_commit_command,
+        "git_push_command": git_push_command,
         "do_not_commit": DO_NOT_COMMIT,
         "next_step": f"Open a pull request using {pr_body_rel}.",
     }
@@ -228,6 +240,10 @@ def _not_ready_result(
         "suggested_commit_message": None,
         "suggested_files_to_commit": [],
         "optional_files": [],
+        "git_add_commands": [],
+        "optional_git_add_commands": [],
+        "git_commit_command": None,
+        "git_push_command": None,
         "do_not_commit": DO_NOT_COMMIT,
         "next_step": "Run: " + " && ".join(commands),
         "reasons": reasons,
@@ -295,6 +311,10 @@ def _dedupe_parent_child(paths: list[str]) -> list[str]:
             continue
         out.append(path)
     return out
+
+
+def _git_add_commands(paths: list[str]) -> list[str]:
+    return [f"git add {path}" for path in paths]
 
 
 def _suggested_files_to_commit(
@@ -463,12 +483,16 @@ def _render_commit_plan(
     suggested_files: list[str],
     suggested_commit_message: str,
     optional_files: list[str],
+    git_add_commands: list[str],
+    optional_git_add_commands: list[str],
+    git_commit_command: str,
+    git_push_command: str,
 ) -> str:
     files_md = "\n".join(f"- {path}" for path in suggested_files) or "- none"
     optional_md = "\n".join(f"- {path}" for path in optional_files) or "- none"
     do_not_commit_md = "\n".join(f"- {path}" for path in DO_NOT_COMMIT)
-    git_add = "git add " + " ".join(suggested_files) if suggested_files else "git add <files>"
-    git_commit = f'git commit -m "{suggested_commit_message}"'
+    git_add_md = "\n".join(git_add_commands) or "git add <files>"
+    optional_git_add_md = "\n".join(optional_git_add_commands) or "git add <optional-files>"
 
     return f"""# Commit Plan — {issue}
 
@@ -476,11 +500,23 @@ def _render_commit_plan(
 
 {files_md}
 
+## Copy/paste git add
+
+```bash
+{git_add_md}
+```
+
 ## Optional Files
 
 {optional_md}
 
-Usually copy the PR body into the Pull Request instead of committing this file.
+## Optional git add
+
+```bash
+{optional_git_add_md}
+```
+
+Usually copy the PR body into the Pull Request instead of committing these files.
 
 ## Do Not Commit
 
@@ -493,9 +529,8 @@ Usually copy the PR body into the Pull Request instead of committing this file.
 ## Suggested Commands
 
 ```bash
-{git_add}
-{git_commit}
-git push -u origin HEAD
+{git_commit_command}
+{git_push_command}
 ```
 
 These commands are suggestions only. `devforge pr-ready` does not run git add, commit or push.
@@ -522,17 +557,33 @@ def _emit(result: dict, plain: bool, output_json: bool) -> None:
     for path in result["suggested_files_to_commit"]:
         print(f"- {path}")
     print()
-    print("Optional files:")
+    print("Copy/paste git add:")
+    print()
+    for command in result["git_add_commands"]:
+        print(command)
+    print()
+    print("Optional helper files:")
     for path in result["optional_files"]:
         print(f"- {path}")
-    print("Usually copy the PR body into the Pull Request instead of committing this file.")
+    print()
+    print("Optional git add:")
+    print()
+    for command in result["optional_git_add_commands"]:
+        print(command)
+    print()
+    print("Usually copy the PR body into the Pull Request instead of committing these files.")
     print()
     print("Do not commit:")
     for path in result["do_not_commit"]:
         print(f"- {path}")
     print()
     print("Suggested commit:")
-    print(f'git commit -m "{result["suggested_commit_message"]}"')
+    print()
+    print(result["git_commit_command"])
+    print()
+    print("Suggested push:")
+    print()
+    print(result["git_push_command"])
     print()
     print("PR body:")
     print(result["pr_body_path"])

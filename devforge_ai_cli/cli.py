@@ -2,6 +2,7 @@ import typer
 
 from devforge_ai_cli import __version__
 from devforge_ai_cli.commands import evidence as evidence_cmd
+from devforge_ai_cli.commands import implement as implement_cmd
 from devforge_ai_cli.commands import init as init_cmd
 from devforge_ai_cli.commands import plan as plan_cmd
 from devforge_ai_cli.commands import policy_check as policy_cmd
@@ -67,6 +68,29 @@ def plan(
 ) -> None:
     """Generate a governed plan from a SPEC."""
     plan_cmd.run_plan(spec=spec, plain=plain, output_json=output_json)
+
+
+@app.command()
+def implement(
+    spec: str = typer.Option(..., "--spec", help="Path to the SPEC file."),
+    agent: str = typer.Option("codex", "--agent", help="External agent to call: codex or custom."),
+    command: str | None = typer.Option(None, "--command", help="Command for --agent custom."),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation before running the agent."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the command without running it."),
+    plain: bool = typer.Option(False, "--plain", help="Plain text output."),
+    output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
+) -> None:
+    """Call a configured external agent using the generated implementation brief."""
+    exit_code = implement_cmd.run_implement(
+        spec=spec,
+        agent=agent,
+        command=command,
+        yes=yes,
+        dry_run=dry_run,
+        plain=plain,
+        output_json=output_json,
+    )
+    raise typer.Exit(code=exit_code)
 
 
 @policy_app.command("check")
