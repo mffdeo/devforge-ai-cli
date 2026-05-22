@@ -225,9 +225,15 @@ def parse_spec(spec_path: Path) -> dict[str, Any]:
     if current is not None:
         sections[current] = "\n".join(lines).strip()
 
+    status = "Unknown"
+    status_match = re.search(r"^Status:\s*(.+)$", content, re.MULTILINE | re.IGNORECASE)
+    if status_match:
+        status = status_match.group(1).strip()
+
     return {
         "spec_id": spec_id,
         "title": title,
+        "status": status,
         "content": content,
         "sections": sections,
     }

@@ -9,6 +9,7 @@ from devforge_ai_cli.commands import policy_check as policy_cmd
 from devforge_ai_cli.commands import pr_ready as pr_ready_cmd
 from devforge_ai_cli.commands import review as review_cmd
 from devforge_ai_cli.commands import scan as scan_cmd
+from devforge_ai_cli.commands import specify as specify_cmd
 
 app = typer.Typer(
     name="devforge",
@@ -58,6 +59,37 @@ def scan(
 ) -> None:
     """Scan repository for stack, CI and risk signals."""
     scan_cmd.run_scan_cmd(plain=plain, output_json=output_json)
+
+
+@app.command()
+def specify(
+    idea: str | None = typer.Option(None, "--idea", help="Feature idea to turn into a SPEC."),
+    title: str | None = typer.Option(None, "--title", help="SPEC title override."),
+    spec_id: str | None = typer.Option(None, "--spec-id", help="SPEC ID override."),
+    agent: str = typer.Option("none", "--agent", help="External agent to refine the SPEC. Supported: none, codex, custom."),
+    command: str | None = typer.Option(None, "--command", help="Shell command used when --agent custom is selected."),
+    interactive: bool = typer.Option(False, "--interactive", help="Ask clarifying questions interactively."),
+    approve: bool = typer.Option(False, "--approve", help="Mark the generated SPEC as Approved."),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation before running an external agent."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show generated paths without writing files."),
+    plain: bool = typer.Option(False, "--plain", help="Plain text output."),
+    output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
+) -> None:
+    """Turn a feature idea into a testable DevForge SPEC."""
+    exit_code = specify_cmd.run_specify(
+        idea=idea,
+        title=title,
+        spec_id=spec_id,
+        agent=agent,
+        command=command,
+        interactive=interactive,
+        approve=approve,
+        yes=yes,
+        dry_run=dry_run,
+        plain=plain,
+        output_json=output_json,
+    )
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()
