@@ -66,6 +66,46 @@ Adicionar prioridade às tarefas de um Todo App Flask/SQLite.
 - Migração leve do banco local.
 """
 
+SPEC_CALC_HISTORY_CONTENT = """\
+# SPEC-HISTORICO-CALCULOS-SESSAO-001 — Histórico de cálculos da sessão
+
+Status: Approved
+
+## Objetivo
+
+Adicionar histórico de cálculos da sessão na calculadora CLI.
+
+## Escopo
+
+- Histórico apenas em memória durante a sessão.
+- Sem arquivo.
+- Sem banco.
+- Sem nuvem.
+- Sem login/auth.
+- Sem dados pessoais.
+
+## Critérios de aceite
+
+- O sistema registra operações válidas com expressão e resultado.
+- Operações inválidas não entram no histórico.
+- O usuário consegue exibir o histórico durante a sessão local.
+- O histórico é perdido ao encerrar a aplicação.
+"""
+
+SPEC_GENERIC_CLI_CONTENT = """\
+# SPEC-MENU-CLI-001 — Melhorar menu da CLI
+
+Status: Approved
+
+## Objetivo
+
+Melhorar as mensagens do menu local da CLI.
+
+## Critérios de aceite
+
+- O menu mostra opções claras para o usuário local.
+"""
+
 
 def _init_and_scan(tmp_path: Path) -> None:
     run_init(plain=True, output_json=False, cwd=tmp_path)
@@ -78,6 +118,54 @@ def _make_spec(tmp_path: Path, content: str = SPEC_AUTH_CONTENT, name: str = "SP
     spec = specs_dir / name
     spec.write_text(content)
     return spec
+
+
+def _python_cli_profile(
+    *,
+    confidence: str = "high",
+    profile_status: str = "approved",
+    requires_agent_review: bool = False,
+) -> dict:
+    return {
+        "project_name": "calculator",
+        "project_type": "python_cli",
+        "detected_stack": ["Python"],
+        "architecture_summary": "Python command-line calculator.",
+        "has_database": False,
+        "has_auth": False,
+        "personal_data_possible": False,
+        "external_integrations": False,
+        "production_impact": "low",
+        "sensitive_areas": [],
+        "signals": {
+            "touches_auth": False,
+            "personal_data_possible": False,
+            "external_integrations": False,
+            "production_impact": "low",
+            "user_interaction": True,
+            "has_ci": False,
+            "has_tests": False,
+            "has_docker": False,
+            "has_database": False,
+        },
+        "prcp": {"baseline_level": "Minimal", "task_elevation": "Minimal"},
+        "confidence": confidence,
+        "profile_status": profile_status,
+        "requires_agent_review": requires_agent_review,
+        "requires_user_approval": profile_status != "approved",
+        "approved_by_user": profile_status == "approved",
+        "assumptions": ["Python CLI calculator."],
+        "gray_areas": [],
+        "source": "user_confirmed" if profile_status == "approved" else "deterministic",
+    }
+
+
+def _write_project_profile(tmp_path: Path, profile: dict) -> None:
+    prcp_dir = tmp_path / ".devforge" / "prcp"
+    prcp_dir.mkdir(parents=True, exist_ok=True)
+    (prcp_dir / "project-profile.json").write_text(
+        json.dumps(profile, indent=2, ensure_ascii=False)
+    )
 
 
 # ── require init ──────────────────────────────────────────────────────────────
@@ -295,6 +383,29 @@ def test_plan_priority_spec_ignores_auth_in_profile_sensitive_areas(tmp_path):
         assert forbidden not in joined, f"task de auth vazou: {forbidden!r}"
 
 
+def test_plan_generic_spec_does_not_inherit_auth_template_from_profile(tmp_path):
+    profile = {
+        "project_type": "python_web",
+        "has_auth": True,
+        "sensitive_areas": ["auth", "login", "permissions"],
+        "signals": {"touches_auth": True},
+        "prcp": {"task_elevation": "Standard"},
+    }
+    spec_data = {
+        "spec_id": "SPEC-DASH-001",
+        "title": "Dashboard de métricas",
+        "content": SPEC_GENERIC_CONTENT,
+        "sections": {"objetivo": "Exibir métricas gerais do sistema."},
+    }
+    domain, _ = classify_spec_domain(spec_data, profile)
+    assert domain == "generic_feature"
+
+    tasks = generate_tasks("SPEC-DASH-001", spec_data, profile)
+    joined = " ".join(t["description"].lower() for t in tasks)
+    for forbidden in ("autenticação", "permissões", "papéis", "auth"):
+        assert forbidden not in joined
+
+
 def test_plan_priority_spec_ignores_incidental_auth_word_in_body(tmp_path):
     """Regression: body mentions 'sessão' incidentally (e.g. 'a ordem
     persiste durante a sessão'). The headline still wins."""
@@ -339,6 +450,203 @@ def test_plan_priority_spec_end_to_end_with_auth_profile(tmp_path):
         "preparar testes manuais e rollback plan",
     ):
         assert required in plan_lower, f"task de priority faltando no PLAN.md: {required!r}"
+
+
+# ── Python CLI session history: avoid auth/db bias ──────────────────────────
+
+def test_plan_python_cli_session_history_is_not_auth_domain(tmp_path):
+    profile = _python_cli_profile()
+    spec_data = {
+        "spec_id": "SPEC-HISTORICO-CALCULOS-SESSAO-001",
+        "title": "Histórico de cálculos da sessão",
+        "content": SPEC_CALC_HISTORY_CONTENT,
+        "sections": {"objetivo": "Adicionar histórico de cálculos da sessão na calculadora CLI."},
+    }
+    domain, touches_database = classify_spec_domain(spec_data, profile)
+    assert domain == "cli_session_history"
+    assert touches_database is False
+
+
+def test_plan_session_word_alone_does_not_classify_auth(tmp_path):
+    profile = _python_cli_profile()
+    spec_data = {
+        "spec_id": "SPEC-SESSAO-LOCAL-001",
+        "title": "Sessão local",
+        "content": "# SPEC-SESSAO-LOCAL-001\n\nDados durante a sessão de uso local.",
+        "sections": {"objetivo": "Manter dados durante a sessão local."},
+    }
+    domain, touches_database = classify_spec_domain(spec_data, profile)
+    assert domain == "generic_cli_feature"
+    assert touches_database is False
+
+
+def test_plan_session_history_in_memory_session_does_not_classify_auth(tmp_path):
+    profile = _python_cli_profile()
+    spec_data = {
+        "spec_id": "SPEC-SESSION-HISTORY-001",
+        "title": "Session history",
+        "content": "# SPEC-SESSION-HISTORY-001\n\nKeep in-memory session history for CLI usage.",
+        "sections": {"objective": "Keep in-memory session history."},
+    }
+    domain, touches_database = classify_spec_domain(spec_data, profile)
+    assert domain == "cli_session_history"
+    assert touches_database is False
+
+
+def test_plan_python_cli_history_generates_no_auth_db_cloud_tasks(tmp_path):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    (tmp_path / "calculator.py").write_text("print('calculator')\n")
+    _write_project_profile(tmp_path, _python_cli_profile())
+    spec = _make_spec(
+        tmp_path,
+        content=SPEC_CALC_HISTORY_CONTENT,
+        name="SPEC-HISTORICO-CALCULOS-SESSAO-001.md",
+    )
+
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+
+    plan_md = (
+        tmp_path
+        / ".devforge"
+        / "plans"
+        / "PLAN-SPEC-HISTORICO-CALCULOS-SESSAO-001.md"
+    ).read_text()
+    plan_lower = plan_md.lower()
+
+    for required in (
+        "mapear fluxo atual da calculadora cli",
+        "adicionar histórico em memória da sessão",
+        "registrar operações válidas com expressão e resultado",
+        "exibir histórico por opção do menu ou antes de sair",
+        "garantir que operações inválidas não entrem no histórico",
+        "preparar teste manual da calculadora cli",
+    ):
+        assert required in plan_lower
+
+    for forbidden in (
+        "mapear fluxo de autenticação",
+        "permissões",
+        "papéis",
+        "login",
+        "schema sqlite",
+        "sqlite",
+        "cloud",
+    ):
+        assert forbidden not in plan_lower
+
+
+def test_plan_python_cli_history_policy_is_allow_without_human_review_or_rollback(tmp_path):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    (tmp_path / "calculator.py").write_text("print('calculator')\n")
+    _write_project_profile(tmp_path, _python_cli_profile())
+    spec = _make_spec(
+        tmp_path,
+        content=SPEC_CALC_HISTORY_CONTENT,
+        name="SPEC-HISTORICO-CALCULOS-SESSAO-001.md",
+    )
+
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+
+    policy = json.loads(
+        (
+            tmp_path
+            / ".devforge"
+            / "policy"
+            / "POLICY-DECISION-SPEC-HISTORICO-CALCULOS-SESSAO-001.json"
+        ).read_text()
+    )
+    assert policy["decision"] == "ALLOW"
+    assert policy["prcp_level"] in {"Minimal", "Standard"}
+    assert "test_report" in policy["required_evidence"]
+    assert "audit_log" in policy["required_evidence"]
+    assert "human_review" not in policy["required_evidence"]
+    assert "rollback_plan" not in policy["required_evidence"]
+
+
+def test_plan_python_cli_history_context_blocks_out_of_scope_uses(tmp_path):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    (tmp_path / "calculator.py").write_text("print('calculator')\n")
+    _write_project_profile(tmp_path, _python_cli_profile())
+    spec = _make_spec(
+        tmp_path,
+        content=SPEC_CALC_HISTORY_CONTENT,
+        name="SPEC-HISTORICO-CALCULOS-SESSAO-001.md",
+    )
+
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+
+    context = (tmp_path / ".devforge" / "context" / "context-pack.md").read_text()
+    assert "calculator.py" in context
+    assert "fluxo CLI local" in context
+    assert "testes manuais/py_compile" in context
+    for blocked in (
+        "login/auth",
+        "banco",
+        "cloud",
+        "persistência em arquivo quando fora de escopo",
+        "dados pessoais",
+        "segredos/tokens",
+    ):
+        assert blocked in context
+
+
+def test_implementation_brief_keeps_python_cli_history_scope(tmp_path):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    (tmp_path / "calculator.py").write_text("print('calculator')\n")
+    _write_project_profile(tmp_path, _python_cli_profile())
+    spec = _make_spec(
+        tmp_path,
+        content=SPEC_CALC_HISTORY_CONTENT,
+        name="SPEC-HISTORICO-CALCULOS-SESSAO-001.md",
+    )
+
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+
+    brief = (
+        tmp_path
+        / ".devforge"
+        / "context"
+        / "implementation-brief-SPEC-HISTORICO-CALCULOS-SESSAO-001.md"
+    ).read_text()
+    assert "histórico de cálculos da sessão" in brief.lower()
+    assert "Adicionar histórico em memória da sessão" in brief
+    assert "não adicionar login" in brief
+    assert "não adicionar autenticação" in brief
+    assert "não adicionar cloud" in brief
+    assert "não adicionar banco se a SPEC não pedir" in brief
+    assert "não persistir dados em arquivo se estiver fora de escopo" in brief
+    assert "não transformar sessão local em sessão autenticada" in brief
+
+
+def test_plan_low_confidence_ambiguous_cli_spec_uses_generic_plan(tmp_path, capsys):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    (tmp_path / "calculator.py").write_text("print('calculator')\n")
+    _write_project_profile(
+        tmp_path,
+        _python_cli_profile(
+            confidence="low",
+            profile_status="draft",
+            requires_agent_review=True,
+        ),
+    )
+    spec = _make_spec(
+        tmp_path,
+        content=SPEC_GENERIC_CLI_CONTENT,
+        name="SPEC-MENU-CLI-001.md",
+    )
+
+    capsys.readouterr()
+    run_plan(spec=str(spec), plain=False, output_json=True, cwd=tmp_path)
+    data = json.loads(capsys.readouterr().out)
+
+    assert data["domain"] == "generic_cli_feature"
+    assert data["plan_confidence"] == "low"
+    assert "devforge scan --agent codex" in data["plan_recommendation"]
+    task_text = " ".join(task["description"].lower() for task in data["tasks"])
+    assert "mapear fluxo cli atual" in task_text
+    assert "implementar comportamento solicitado na spec" in task_text
+    assert "autenticação" not in task_text
+    assert "schema" not in task_text
 
 
 def test_plan_generates_implementation_brief(tmp_path):

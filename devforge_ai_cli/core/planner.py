@@ -28,12 +28,51 @@ BLOCKED_USES = [
     "credenciais privadas",
 ]
 
-_AUTH_KWS = {"auth", "login", "logout", "jwt", "token", "password", "secret", "rbac", "role", "roles", "permission", "permissions"}
-_AUTH_EXTRA_TERMS = {"senha", "sessão", "session"}
+CLI_BLOCKED_USES = [
+    "login/auth",
+    "banco",
+    "cloud",
+    "persistência em arquivo quando fora de escopo",
+    "dados pessoais",
+    "segredos/tokens",
+]
+
+_AUTH_KWS = {
+    "auth", "login", "logout", "jwt", "oauth", "token", "password", "secret",
+    "rbac", "role", "roles", "permission", "permissions",
+}
+_AUTH_EXTRA_TERMS = {"senha", "autenticação", "authentication", "permissões", "papéis"}
+_AUTH_PHRASES = {
+    "sessão autenticada", "authenticated session", "session cookie",
+    "usuário autenticado", "authenticated user", "cadastro de usuário",
+    "user registration", "auth user",
+}
+_AUTH_NEGATION_PATTERNS = (
+    r"\bsem\s+(?:login\s*/\s*auth|login|auth|autenticação|autenticacao|senha|token|permissões|permissoes|papéis|papeis)\b",
+    r"\bn[aã]o\s+(?:adicionar|usar|criar|implementar|exigir)\s+(?:login|auth|autenticação|autenticacao|senha|token|permissões|permissoes|papéis|papeis)\b",
+    r"\bno\s+(?:login|auth|authentication|password|token|rbac|roles?|permissions?)\b",
+    r"\bwithout\s+(?:login|auth|authentication|password|token|rbac|roles?|permissions?)\b",
+)
+_LOCAL_SESSION_TERMS = {
+    "histórico da sessão", "sessão local", "sessão de uso", "durante a sessão",
+    "session history", "in-memory session", "local session",
+}
 _PAYMENT_KWS = {"payment", "billing", "pagamento", "cobrança"}
 _DB_KWS = {"migration", "database", "schema", "migrate"}
 _DB_EXTRA_TERMS = {"banco", "sqlite", "tabela", "create table", "alter table", "drop table"}
-_TASK_PRIORITY_TERMS = {"prioridade", "priority", "tarefa", "task", "todo"}
+_DB_NEGATION_PATTERNS = (
+    r"\bsem\s+(?:arquivo|persistência|persistencia|banco|database|sqlite|schema|tabela|migração|migracao)\b",
+    r"\bn[aã]o\s+(?:adicionar|usar|criar|alterar|persistir|tocar|exigir)\s+(?:arquivo|persistência|persistencia|banco|database|sqlite|schema|tabela)\b",
+    r"\bno\s+(?:file|database|sqlite|schema|persistence)\b",
+    r"\bwithout\s+(?:file|database|sqlite|schema|persistence)\b",
+)
+_TASK_PRIORITY_TERMS = {"prioridade", "priority"}
+_TASK_CONTEXT_TERMS = {"tarefa", "tarefas", "task", "tasks", "todo", "todos"}
+_CALC_HISTORY_TERMS = {"histórico", "historico", "history", "cálculo", "calculo", "calculation", "calculator", "calculadora"}
+_PLAN_REVIEW_RECOMMENDATION = (
+    "Review this plan before implementation; consider devforge scan --agent codex "
+    "for assisted project profiling."
+)
 
 _TASK_TEMPLATES: dict[str, list[tuple[str, str]]] = {
     "auth": [
@@ -65,6 +104,21 @@ _TASK_TEMPLATES: dict[str, list[tuple[str, str]]] = {
         ('Definir valor padrão "Média"', "config"),
         ("Preparar testes manuais e rollback plan", "rollback"),
     ],
+    "cli_session_history": [
+        ("Mapear fluxo atual da calculadora CLI", "arch"),
+        ("Adicionar histórico em memória da sessão", "feature"),
+        ("Registrar operações válidas com expressão e resultado", "feature"),
+        ("Exibir histórico por opção do menu ou antes de sair", "ui"),
+        ("Garantir que operações inválidas não entrem no histórico", "test"),
+        ("Preparar teste manual da calculadora CLI", "test"),
+    ],
+    "generic_cli_feature": [
+        ("Mapear fluxo CLI atual", "arch"),
+        ("Implementar comportamento solicitado na SPEC", "feature"),
+        ("Atualizar mensagens/opções do menu se necessário", "ui"),
+        ("Validar fluxo manualmente", "test"),
+        ("Registrar test_report", "test"),
+    ],
     "generic": [
         ("Revisar escopo e critérios de aceite", "review"),
         ("Mapear dependências e impacto", "arch"),
@@ -83,11 +137,135 @@ def _hits(text: str, terms: set[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _strip_patterns(text: str, patterns: tuple[str, ...]) -> str:
+    cleaned = text
+    for pattern in patterns:
+        cleaned = re.sub(pattern, " ", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
+def _auth_hits(text: str) -> bool:
+    text = _strip_patterns(text.lower(), _AUTH_NEGATION_PATTERNS)
+    if any(phrase in text for phrase in _AUTH_PHRASES):
+        return True
+    return _hits(text, _AUTH_KWS | _AUTH_EXTRA_TERMS)
+
+
+def _database_hits(text: str) -> bool:
+    cleaned = _strip_patterns(text.lower(), _DB_NEGATION_PATTERNS)
+    return _hits(cleaned, _DB_KWS | _DB_EXTRA_TERMS)
+
+
+def _task_priority_hits(text: str) -> bool:
+    lowered = text.lower()
+    return _hits(lowered, _TASK_PRIORITY_TERMS) and _hits(lowered, _TASK_CONTEXT_TERMS)
+
+
+def _local_session_hits(text: str) -> bool:
+    text = text.lower()
+    return any(term in text for term in _LOCAL_SESSION_TERMS)
+
+
+def _cli_history_hits(text: str) -> bool:
+    lowered = text.lower()
+    return _hits(lowered, _CALC_HISTORY_TERMS) and (
+        _local_session_hits(lowered)
+        or "memória" in lowered
+        or "memoria" in lowered
+        or "in-memory" in lowered
+    )
+
+
 def _profile_bool(profile: dict, top_level: str, signal_key: str | None = None) -> bool:
     if top_level in profile:
         return bool(profile.get(top_level))
     signals = profile.get("signals", {})
     return bool(signals.get(signal_key or top_level, False))
+
+
+@dataclass(frozen=True)
+class _PlanClassification:
+    domain: str
+    touches_database: bool
+    plan_confidence: str
+    plan_recommendation: str = ""
+
+
+def _confidence_for(profile: dict, *, clear_domain: bool) -> str:
+    profile_confidence = str(profile.get("confidence", "low")).lower()
+    profile_approved = profile.get("profile_status") == "approved"
+    requires_agent_review = bool(profile.get("requires_agent_review", False))
+
+    if clear_domain:
+        if profile_approved and profile_confidence == "high":
+            return "high"
+        return "medium"
+    if requires_agent_review or profile_confidence in {"", "unknown", "low"}:
+        return "low"
+    return "medium"
+
+
+def _classification(
+    domain: str,
+    touches_database: bool,
+    profile: dict,
+    *,
+    clear_domain: bool,
+) -> _PlanClassification:
+    confidence = _confidence_for(profile, clear_domain=clear_domain)
+    recommendation = _PLAN_REVIEW_RECOMMENDATION if confidence != "high" else ""
+    return _PlanClassification(
+        domain=domain,
+        touches_database=touches_database,
+        plan_confidence=confidence,
+        plan_recommendation=recommendation,
+    )
+
+
+def classify_plan(spec_data: dict, profile: dict | None = None) -> _PlanClassification:
+    """Infer SPEC domain, DB impact and planner confidence.
+
+    The planner is intentionally conservative: specific templates are used
+    only when the SPEC has a clear domain signal. Ambiguous specs fall back
+    to a project-type generic plan and expose plan_confidence for review.
+    """
+    profile = profile or {}
+    content = _spec_lower(spec_data)
+
+    spec_id = (spec_data.get("spec_id") or "").lower()
+    title = (spec_data.get("title") or "").lower()
+    sections = spec_data.get("sections") or {}
+    objective = (sections.get("objetivo") or sections.get("objective") or "").lower()
+    headline = f"{spec_id} {title} {objective}".strip()
+
+    touches_database = _database_hits(content)
+    project_type = profile.get("project_type", "")
+
+    if headline:
+        if _task_priority_hits(headline):
+            return _classification("task_priority", touches_database, profile, clear_domain=True)
+        if project_type == "python_cli" and _cli_history_hits(headline):
+            return _classification("cli_session_history", touches_database, profile, clear_domain=True)
+        if _auth_hits(headline):
+            return _classification("auth", touches_database, profile, clear_domain=True)
+        if _hits(headline, _PAYMENT_KWS):
+            return _classification("payment", touches_database, profile, clear_domain=True)
+        if _database_hits(headline):
+            return _classification("database", touches_database, profile, clear_domain=True)
+
+    if project_type == "python_cli" and _cli_history_hits(content):
+        return _classification("cli_session_history", touches_database, profile, clear_domain=True)
+    if project_type == "python_cli":
+        return _classification("generic_cli_feature", touches_database, profile, clear_domain=False)
+    if _auth_hits(content):
+        return _classification("auth", touches_database, profile, clear_domain=True)
+    if _hits(content, _PAYMENT_KWS):
+        return _classification("payment", touches_database, profile, clear_domain=True)
+    if _task_priority_hits(content):
+        return _classification("task_priority", touches_database, profile, clear_domain=True)
+    if touches_database:
+        return _classification("database", touches_database, profile, clear_domain=True)
+    return _classification("generic_feature", touches_database, profile, clear_domain=False)
 
 
 def classify_spec_domain(spec_data: dict, profile: dict | None = None) -> tuple[str, bool]:
@@ -112,40 +290,10 @@ def classify_spec_domain(spec_data: dict, profile: dict | None = None) -> tuple[
     full content and the scan profile.
 
     touches_database stays orthogonal to the domain and is True when the
-    SPEC text or scan profile show database/schema work.
+    SPEC text declares database/schema work.
     """
-    profile = profile or {}
-    content = _spec_lower(spec_data)
-    sensitive = set(profile.get("sensitive_areas", []))
-
-    spec_id = (spec_data.get("spec_id") or "").lower()
-    title = (spec_data.get("title") or "").lower()
-    sections = spec_data.get("sections") or {}
-    objective = (sections.get("objetivo") or sections.get("objective") or "").lower()
-    headline = f"{spec_id} {title} {objective}".strip()
-
-    touches_database = (
-        _hits(content, _DB_KWS | _DB_EXTRA_TERMS)
-        or bool(_DB_KWS & sensitive)
-        or bool({"database", "schema", "sqlite"} & sensitive)
-        or _profile_bool(profile, "has_database")
-    )
-
-    if headline:
-        if _hits(headline, _TASK_PRIORITY_TERMS):
-            return "task_priority", touches_database
-        if _hits(headline, _AUTH_KWS | _AUTH_EXTRA_TERMS):
-            return "auth", touches_database
-        if _hits(headline, _PAYMENT_KWS):
-            return "payment", touches_database
-
-    if _hits(content, _AUTH_KWS | _AUTH_EXTRA_TERMS) or bool(_AUTH_KWS & sensitive):
-        return "auth", touches_database
-    if _hits(content, _PAYMENT_KWS) or bool(_PAYMENT_KWS & sensitive):
-        return "payment", touches_database
-    if _hits(content, _TASK_PRIORITY_TERMS):
-        return "task_priority", touches_database
-    return "generic_feature", touches_database
+    plan = classify_plan(spec_data, profile)
+    return plan.domain, plan.touches_database
 
 
 def compute_effective_prcp(profile: dict, spec_data: dict) -> str:
@@ -165,9 +313,24 @@ def compute_effective_prcp(profile: dict, spec_data: dict) -> str:
 def compute_allowed_uses(spec_data: dict, profile: dict | None = None) -> list[str]:
     """Allowed uses for the Context Pack, expanded when the SPEC needs them."""
     uses = list(ALLOWED_USES)
-    _, touches_database = classify_spec_domain(spec_data, profile or {})
+    profile = profile or {}
+    _, touches_database = classify_spec_domain(spec_data, profile)
+    if profile.get("project_type") == "python_cli":
+        for item in ("calculator.py", "fluxo CLI local", "testes manuais/py_compile"):
+            if item not in uses:
+                uses.append(item)
     if touches_database and "schema local" not in uses:
         uses.append("schema local")
+    return uses
+
+
+def compute_blocked_uses(spec_data: dict, profile: dict | None = None) -> list[str]:
+    uses = list(BLOCKED_USES)
+    profile = profile or {}
+    if profile.get("project_type") == "python_cli":
+        for item in CLI_BLOCKED_USES:
+            if item not in uses:
+                uses.append(item)
     return uses
 
 
@@ -178,7 +341,10 @@ class PlanResult:
     context_pack_id: str
     spec_path: str
     spec_title: str
+    domain: str
     prcp_level: str
+    plan_confidence: str
+    plan_recommendation: str
     policy_decision: str
     tasks: list[dict]
     allowed_uses: list[str]
@@ -247,7 +413,7 @@ def parse_spec(spec_path: Path) -> dict[str, Any]:
 
 
 def generate_tasks(spec_id: str, spec_data: dict, profile: dict) -> list[dict]:
-    domain, _ = classify_spec_domain(spec_data, profile)
+    domain = classify_plan(spec_data, profile).domain
     template_key = domain if domain in _TASK_TEMPLATES else "generic"
 
     prefix = _task_prefix(spec_id)
@@ -264,7 +430,9 @@ def determine_policy(profile: dict, spec_data: dict) -> tuple[str, list[str]]:
     effective_prcp = compute_effective_prcp(profile, spec_data)
 
     hardened = effective_prcp == "Hardened"
-    touches_auth = _profile_bool(profile, "has_auth", "touches_auth") or domain == "auth"
+    touches_auth = domain == "auth" or (
+        _profile_bool(profile, "has_auth", "touches_auth") and profile.get("has_auth", False)
+    )
     personal_data = _profile_bool(profile, "personal_data_possible")
     spec_has_risk = domain in {"auth", "payment"}
 
@@ -273,7 +441,7 @@ def determine_policy(profile: dict, spec_data: dict) -> tuple[str, list[str]]:
         required = ["test_report", "human_review", "rollback_plan", "audit_log"]
     else:
         decision = PolicyDecision.ALLOW
-        required = ["audit_log"]
+        required = ["test_report", "audit_log"] if domain in {"cli_session_history", "generic_cli_feature"} else ["audit_log"]
 
     return decision.value, required
 
@@ -298,6 +466,9 @@ def _write_plan_files(base: Path, result: PlanResult) -> list[str]:
             spec_path=result.spec_path,
             timestamp=result.generated_at,
             prcp_level=result.prcp_level,
+            domain=result.domain,
+            plan_confidence=result.plan_confidence,
+            plan_recommendation=result.plan_recommendation,
             tasks=result.tasks,
             policy_decision=result.policy_decision,
         ),
@@ -316,6 +487,8 @@ def _write_plan_files(base: Path, result: PlanResult) -> list[str]:
             blocked_uses=result.blocked_uses,
             required_evidence=result.required_evidence,
             project_profile=result.project_profile,
+            plan_confidence=result.plan_confidence,
+            plan_recommendation=result.plan_recommendation,
         ),
         encoding="utf-8",
     )
@@ -331,6 +504,9 @@ def _write_plan_files(base: Path, result: PlanResult) -> list[str]:
                 "plan_id": result.plan_id,
                 "decision": result.policy_decision,
                 "prcp_level": result.prcp_level,
+                "domain": result.domain,
+                "plan_confidence": result.plan_confidence,
+                "plan_recommendation": result.plan_recommendation,
                 "required_evidence": result.required_evidence,
                 "timestamp": result.generated_at,
             },
@@ -401,6 +577,9 @@ def _compute_in_scope(spec_data: dict, profile: dict, base: Path) -> list[str]:
     for name in ("app.py", "db_create.py", "database.py", "models.py", "main.py"):
         if (base / name).exists():
             candidates.append(name)
+    if profile.get("project_type") == "python_cli":
+        for path in sorted(base.glob("*.py")):
+            candidates.append(path.name)
     for name in ("templates", "static", "src", "lib"):
         if (base / name).is_dir():
             candidates.append(f"{name}/")
@@ -408,11 +587,12 @@ def _compute_in_scope(spec_data: dict, profile: dict, base: Path) -> list[str]:
     spec_rel = spec_data.get("relpath")
     if spec_rel:
         candidates.append(spec_rel)
-    candidates.extend([
-        "docs/rollback/",
-        ".devforge/test-reports/",
-        ".devforge/reviews/",
-    ])
+    candidates.append(".devforge/test-reports/")
+    if profile.get("project_type") != "python_cli":
+        candidates.extend([
+            "docs/rollback/",
+            ".devforge/reviews/",
+        ])
     # de-dup preserving order
     seen: set[str] = set()
     return [c for c in candidates if not (c in seen or seen.add(c))]
@@ -466,6 +646,7 @@ def _write_implementation_brief(base: Path, env, result: PlanResult) -> Path:
             compile_targets=compile_targets,
             required_evidence=result.required_evidence,
             evidence_paths=evidence_paths,
+            project_profile=profile,
         ),
         encoding="utf-8",
     )
@@ -481,10 +662,12 @@ def generate_plan(spec_path: Path, base: Path) -> PlanResult:
     if profile_path.exists():
         profile = json.loads(profile_path.read_text(encoding="utf-8"))
 
+    classification = classify_plan(spec_data, profile)
     prcp_level = compute_effective_prcp(profile, spec_data)
     tasks = generate_tasks(spec_id, spec_data, profile)
     policy_decision, required_evidence = determine_policy(profile, spec_data)
     allowed_uses = compute_allowed_uses(spec_data, profile)
+    blocked_uses = compute_blocked_uses(spec_data, profile)
 
     result = PlanResult(
         spec_id=spec_id,
@@ -492,11 +675,14 @@ def generate_plan(spec_path: Path, base: Path) -> PlanResult:
         context_pack_id=f"CTX-{spec_id}",
         spec_path=str(spec_path),
         spec_title=spec_data["title"],
+        domain=classification.domain,
         prcp_level=prcp_level,
+        plan_confidence=classification.plan_confidence,
+        plan_recommendation=classification.plan_recommendation,
         policy_decision=policy_decision,
         tasks=tasks,
         allowed_uses=allowed_uses,
-        blocked_uses=BLOCKED_USES,
+        blocked_uses=blocked_uses,
         required_evidence=required_evidence,
         project_profile=profile,
     )

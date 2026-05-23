@@ -44,9 +44,15 @@ The agent may modify, within the limits of the SPEC and Plan Pack:
 - não adicionar login
 - não adicionar autenticação
 - não adicionar cloud
+- não adicionar banco se a SPEC não pedir
+- não persistir dados em arquivo se estiver fora de escopo
 - não alterar escopo não pedido
 - não varrer `.venv/`
 - não tratar `.devforge/audit/`, `.devforge/evidence/` ou `.devforge/prcp/` como código de aplicação
+{% if project_profile.get("project_type") == "python_cli" %}
+- manter comportamento local da CLI
+- não transformar sessão local em sessão autenticada
+{% endif %}
 
 ## Sobre revisão humana
 

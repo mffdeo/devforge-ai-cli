@@ -63,6 +63,9 @@ def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None)
         "context_pack_id": result.context_pack_id,
         "policy_decision": result.policy_decision,
         "prcp_level": result.prcp_level,
+        "domain": result.domain,
+        "plan_confidence": result.plan_confidence,
+        "plan_recommendation": result.plan_recommendation,
         "required_evidence": result.required_evidence,
         "generated_files": result.generated_files,
         "implementation_brief_path": result.implementation_brief_path,
@@ -80,6 +83,9 @@ def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None)
             "context_pack_id": result.context_pack_id,
             "policy_decision": result.policy_decision,
             "prcp_level": result.prcp_level,
+            "domain": result.domain,
+            "plan_confidence": result.plan_confidence,
+            "plan_recommendation": result.plan_recommendation,
             "tasks": result.tasks,
             "allowed_uses": result.allowed_uses,
             "blocked_uses": result.blocked_uses,
@@ -96,7 +102,11 @@ def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None)
             print(f"[DevForge] Warning: {warning}")
         print(f"[DevForge] Plan Pack gerado: {result.plan_id}")
         print(f"SPEC: {result.spec_id} — {result.spec_title}")
+        print(f"Domain: {result.domain}")
         print(f"PRCP: {result.prcp_level}")
+        print(f"Plan confidence: {result.plan_confidence}")
+        if result.plan_recommendation:
+            print(f"Recommended review: {result.plan_recommendation}")
         print(f"Política: {result.policy_decision}")
         for task in result.tasks:
             print(f"  - [{task['id']}] {task['description']}")

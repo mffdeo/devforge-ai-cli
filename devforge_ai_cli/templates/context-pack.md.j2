@@ -8,6 +8,12 @@
 - source: {{ project_profile.get("source", "unknown") }}
 - confidence: {{ project_profile.get("confidence", "unknown") }}
 
+## Plan Guidance
+
+- plan_confidence: {{ plan_confidence }}
+{% if plan_recommendation %}- recommended_review: {{ plan_recommendation }}
+{% endif %}
+
 {% if project_profile.get("assumptions") %}### Assumptions
 
 {% for item in project_profile.get("assumptions", []) %}- {{ item }}
