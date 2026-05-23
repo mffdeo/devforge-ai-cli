@@ -32,6 +32,22 @@ def test_scan_generates_project_profile(tmp_path):
     assert (tmp_path / ".devforge" / "prcp" / "project-profile.json").exists()
 
 
+def test_scan_generates_project_signals(tmp_path):
+    _init(tmp_path)
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    assert (tmp_path / ".devforge" / "prcp" / "project-signals.json").exists()
+
+
+def test_scan_generates_project_profile_brief(tmp_path):
+    _init(tmp_path)
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    brief = tmp_path / ".devforge" / "context" / "project-profile-brief.md"
+    assert brief.exists()
+    content = brief.read_text()
+    assert "Do not implement code." in content
+    assert "Do not treat `input()` in a local CLI as personal data automatically." in content
+
+
 def test_scan_generates_scan_report(tmp_path):
     _init(tmp_path)
     run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
@@ -70,6 +86,12 @@ def test_scan_detects_nextjs_from_package_json(tmp_path):
 
 def test_scan_detects_python_from_pyproject_toml(tmp_path):
     (tmp_path / "pyproject.toml").write_text('[project]\nname = "my-app"\n')
+    stack, _, _ = _detect_stack(tmp_path)
+    assert "Python" in stack
+
+
+def test_scan_detects_python_from_py_file(tmp_path):
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
     stack, _, _ = _detect_stack(tmp_path)
     assert "Python" in stack
 
@@ -178,6 +200,85 @@ def test_scan_detects_permission_by_folder_name(tmp_path):
     assert "permission" in areas or "permissions" in areas
 
 
+def test_scan_input_does_not_create_personal_data_signal(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text(
+        "user_value = input('Enter a user choice: ')\n"
+        "print(int(value) + 1)\n"
+    )
+    result = run_scan("calculator", tmp_path)
+    assert result.signals["user_interaction"] is True
+    assert result.signals["personal_data_possible"] is False
+    assert result.personal_data_possible is False
+    assert "user" not in result.sensitive_areas
+    assert "rg" not in result.sensitive_areas
+
+
+def test_scan_python_cli_simple_project_type(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text(
+        "value = input('Enter a number: ')\n"
+        "print(int(value) + 1)\n"
+    )
+    result = run_scan("calculator", tmp_path)
+    assert result.project_type in {"python_cli", "generic_python"}
+    assert "Python" in result.detected_stack
+
+
+def test_scan_python_cli_simple_does_not_elevate_to_hardened(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text(
+        "choice = input('Choose operation: ')\n"
+        "print(choice)\n"
+    )
+    result = run_scan("calculator", tmp_path)
+    assert result.task_elevation != "Hardened"
+    assert result.signals["touches_auth"] is False
+    assert result.signals["personal_data_possible"] is False
+
+
+def test_scan_rg_isolated_in_document_context_marks_personal_data(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "registration.py").write_text(
+        "documento = input('Informe RG: ')\n"
+        "print(documento)\n"
+    )
+    result = run_scan("registration", tmp_path)
+    assert result.personal_data_possible is True
+    assert "rg" in result.sensitive_areas
+    assert result.task_elevation == "Hardened"
+
+
+def test_scan_rg_substring_does_not_mark_personal_data(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text(
+        "merge_result = input('Enter user option: ')\n"
+        "print(merge_result)\n"
+    )
+    result = run_scan("calculator", tmp_path)
+    assert result.signals["user_interaction"] is True
+    assert result.personal_data_possible is False
+    assert "rg" not in result.sensitive_areas
+    assert result.task_elevation != "Hardened"
+
+
+def test_project_signals_separates_interaction_and_sensitive_hits(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text(
+        "user_value = input('Enter user option: ')\n"
+        "print(user_value)\n"
+    )
+    run_scan("calculator", tmp_path)
+    signals = json.loads((tmp_path / ".devforge" / "prcp" / "project-signals.json").read_text())
+    interaction_keywords = {hit["keyword"] for hit in signals["user_interaction_hits"]}
+    strong_keywords = {hit["keyword"] for hit in signals["strong_sensitive_hits"]}
+    weak_keywords = {hit["keyword"] for hit in signals["weak_sensitive_hits"]}
+    assert {"input", "enter", "option"} <= interaction_keywords
+    assert "user" in weak_keywords
+    assert "user" not in strong_keywords
+    assert "raw_sensitive_hits" not in signals
+
+
 # ── output modes ──────────────────────────────────────────────────────────────
 
 def test_scan_json_output(tmp_path, capsys):
@@ -190,6 +291,13 @@ def test_scan_json_output(tmp_path, capsys):
     assert "detected_stack" in data
     assert "sensitive_areas" in data
     assert "signals" in data
+    assert "project_type" in data
+    assert "confidence" in data
+    assert "source" in data
+    assert "profile_status" in data
+    assert "requires_agent_review" in data
+    assert "requires_user_approval" in data
+    assert "recommended_next_step" in data
     assert "baseline_level" in data
     assert "task_elevation" in data
     assert "generated_files" in data
@@ -202,6 +310,7 @@ def test_scan_json_output(tmp_path, capsys):
 
 def test_scan_without_specs_suggests_specify_when_specs_dir_missing(tmp_path):
     _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
     result = run_scan("empty", tmp_path)
     assert result.suggested_next_spec is None
     assert result.suggested_next_command == 'devforge specify --idea "Describe your feature idea"'
@@ -209,6 +318,7 @@ def test_scan_without_specs_suggests_specify_when_specs_dir_missing(tmp_path):
 
 def test_scan_without_specs_suggests_specify_when_specs_dir_empty(tmp_path):
     _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
     (tmp_path / "specs").mkdir()
     result = run_scan("empty-specs", tmp_path)
     assert result.suggested_next_spec is None
@@ -217,6 +327,7 @@ def test_scan_without_specs_suggests_specify_when_specs_dir_empty(tmp_path):
 
 def test_scan_suggests_first_spec_alphabetically(tmp_path):
     _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
     specs = tmp_path / "specs"
     specs.mkdir()
     (specs / "SPEC-PRIORITY-001.md").write_text("# priority")
@@ -272,6 +383,7 @@ def test_scan_does_not_suggest_auth_md_for_generic_project(tmp_path, capsys):
 
 def test_scan_plain_without_specs_suggests_specify(tmp_path, capsys):
     _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
     capsys.readouterr()
     run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
     out = capsys.readouterr().out
@@ -309,3 +421,51 @@ def test_scan_profile_json_content(tmp_path):
     assert data["prcp"]["task_elevation"] in ("Minimal", "Standard", "Hardened", "Critical")
     assert "signals" in data
     assert "detected_stack" in data
+    assert data["source"] == "deterministic"
+    assert data["profile_status"] == "draft"
+    assert data["requires_user_approval"] is True
+    assert "project_type" in data
+    assert "confidence" in data
+
+
+def test_scan_generates_profile_status_draft_by_default(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    data = json.loads((tmp_path / ".devforge" / "prcp" / "project-profile.json").read_text())
+    assert data["profile_status"] == "draft"
+    assert data["source"] == "deterministic"
+    assert data["requires_user_approval"] is True
+
+
+def test_scan_low_confidence_recommends_agent(tmp_path):
+    _init(tmp_path)
+    result = run_scan("empty", tmp_path)
+    assert result.confidence == "low"
+    assert result.suggested_next_command == "devforge scan --agent codex"
+
+
+def test_scan_medium_confidence_recommends_agent(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "db.py").write_text("import sqlite3\n")
+    result = run_scan("db-project", tmp_path)
+    assert result.confidence == "medium"
+    assert result.suggested_next_command == "devforge scan --agent codex"
+
+
+def test_scan_agent_custom_dry_run_does_not_alter_code(tmp_path):
+    _init(tmp_path)
+    app = tmp_path / "calculator.py"
+    app.write_text("print(1 + 1)\n")
+    before = app.read_text()
+    rc = run_scan_cmd(
+        plain=True,
+        output_json=False,
+        cwd=tmp_path,
+        agent="custom",
+        command="echo",
+        dry_run=True,
+        yes=False,
+    )
+    assert rc == 0
+    assert app.read_text() == before

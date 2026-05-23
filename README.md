@@ -1,76 +1,197 @@
 # DevForge CLI
 
-> **Local-first governance CLI for AI-assisted SDLC.**
-> Classifique risco, controle contexto, aplique políticas e gere evidências auditáveis antes do merge.
+> **A local-first experiment for AI-assisted software governance.**
 
 [![CI](https://github.com/mffdeo/devforge-ai-cli/actions/workflows/ci.yml/badge.svg)](https://github.com/mffdeo/devforge-ai-cli/actions/workflows/ci.yml)
 [![Python 3.12+](https://img.shields.io/badge/python-3.12+-blue.svg)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
----
+DevForge CLI is a personal learning project. It is not a production governance product, not a compliance tool, and not a universal repository scanner.
 
-## O que é o DevForge CLI?
+The project explores one question:
 
-**DevForge CLI** é uma ferramenta open-source para ajudar desenvolvedores e times a governar mudanças feitas com IA antes do merge.
-
-Ele não é uma IDE. Ele não é um agente de código. Ele não substitui Cursor, Claude Code, Codex, Copilot ou qualquer outro agente.
-
-> **Agentes executam. DevForge governa.**
-
-Antes de uma mudança entrar no repositório principal, o DevForge CLI ajuda a responder:
-
-- Essa mudança toca áreas sensíveis?
-- Qual é o risco proporcional da alteração?
-- Qual contexto a IA poderia usar?
-- Quais políticas se aplicam?
-- Quais evidências precisam existir antes do merge?
-- Existe trilha auditável do que aconteceu?
+> What would a local-first governance harness for AI-assisted development look like?
 
 ---
 
-## Fluxo principal
+## What This Is
 
+DevForge CLI is an experimental command-line tool that organizes local artifacts around an AI-assisted development workflow:
+
+- feature specification;
+- project profile and risk signals;
+- implementation briefs;
+- policy checks;
+- human review notes;
+- evidence packs;
+- pull request guidance.
+
+It writes Markdown and JSON files under `.devforge/` so the workflow can be inspected, versioned, and reviewed locally.
+
+It does **not** call an internal LLM. Optional commands can invoke an external local agent configured by the user, but that is opt-in.
+
+---
+
+## Why I Built It
+
+I wanted to understand how much structure is needed around AI-generated code before a change reaches a pull request.
+
+The initial idea was simple: before merging AI-assisted code, the tool would scan the repository, classify risk, produce a plan, require evidence, and guide the user through review.
+
+That idea was useful, but the real tests exposed an important limitation: deterministic heuristics cannot reliably understand every project.
+
+---
+
+## The Workflow I Wanted
+
+The intended workflow became:
+
+```text
+init -> scan -> specify -> plan -> implement -> policy check -> review -> evidence -> pr-ready
 ```
-init → scan → plan → policy check → review → evidence
+
+In practice:
+
+```bash
+devforge init
+devforge scan
+devforge specify --idea "Add task priority"
+devforge plan --spec specs/SPEC-PRIORITY-001.md
+devforge implement --spec specs/SPEC-PRIORITY-001.md --agent codex
+devforge policy check --diff
+devforge review --issue SPEC-PRIORITY-001
+devforge evidence --issue SPEC-PRIORITY-001
+devforge pr-ready --issue SPEC-PRIORITY-001
 ```
 
-![DevForge CLI — fluxo principal](docs/assets/screenshots/how-it-works.png)
-
-> Um único repositório local detém todo o estado de governança.
-> SPEC, plano, contexto, política, evidência e trilha de auditoria
-> ficam dentro do projeto — sem cloud login, saídas em Markdown + JSON,
-> revisão humana quando o risco exige.
-
-O diagrama acima resume a sequência em três blocos:
-
-- **R1 — Author + Workspace.** O autor escreve a `SPEC`, roda `devforge init` e o repositório passa a carregar `.devforge/config.yml` ao lado de IDE, agente e Git.
-- **R2 — Scan + Governance core.** `devforge scan` classifica risco e detecta áreas sensíveis. `devforge plan --spec` produz o **PRCP baseline**, o **Context Pack** e a **Policy Decision** (`ALLOW` / `REQUIRE_APPROVAL`).
-- **R3 — Policy gate + Review.** `devforge policy check --diff` avalia o diff contra a política. Quando a política exige aprovação, `devforge review --issue …` registra a revisão humana antes de `devforge evidence --issue …` emitir o **Evidence Pack** auditável (`EVID-…`) que acompanha o PR.
+The important part is not automation for its own sake. The goal is to make handoffs, assumptions, policy decisions, and evidence explicit.
 
 ---
 
-## Instalação
+## Current Capabilities
 
-### A partir do GitHub (recomendado para o MVP)
+DevForge CLI currently includes:
 
-O pacote ainda não foi publicado no PyPI. Instale diretamente do repositório:
+- `devforge init` to create local `.devforge/` governance folders;
+- `devforge scan` to collect deterministic project signals and draft a Project Profile;
+- `devforge profile approve` to explicitly approve a Project Profile;
+- `devforge specify` to generate a testable SPEC from a feature idea;
+- `devforge plan --spec` to generate a Plan Pack, Context Pack, Policy Decision, Agent Instructions, and Implementation Brief;
+- `devforge implement` to optionally call an external local coding agent using the implementation brief;
+- `devforge policy check --diff` to evaluate the current diff against local rules;
+- `devforge review` to record explicit human review;
+- `devforge evidence` to collect an Evidence Pack;
+- `devforge pr-ready` to prepare commit and PR guidance without committing or pushing.
 
-**Com pipx:**
+These commands are functional, but their outputs should be treated as reviewable drafts, not final decisions.
+
+---
+
+## What Worked
+
+The project worked well as a workflow harness:
+
+- It produced useful Markdown and JSON artifacts.
+- It made implicit handoffs explicit.
+- It separated implementation from review and evidence.
+- It helped clarify what a PR should include.
+- It created an audit trail that is easy to inspect locally.
+- It made it easier to see when human review should be required.
+
+The most useful parts were the briefs, evidence packs, audit trail, and PR guidance.
+
+---
+
+## What Did Not Work
+
+The deterministic scanner and planner were too brittle when treated as universal understanding.
+
+Real tests showed false positives:
+
+- a simple Python CLI calculator was initially treated as higher risk than it was;
+- local `input()` was easy to confuse with personal data;
+- the word "session" / "sessão" could be mistaken for authentication;
+- phrases like "no database" or "sem banco" could still trigger database risk if handled naively;
+- generic project words could push the planner toward specific templates such as auth.
+
+Those issues are not just keyword bugs. They show that repository understanding needs context, review, and probably agent-assisted reasoning.
+
+---
+
+## Key Lessons Learned
+
+1. A deterministic scan should collect signals, not pretend to know the project.
+2. A Project Profile should be reviewed and approved by a human.
+3. The best role for DevForge is not "universal scanner"; it is "governance harness".
+4. AI-assisted development needs structured handoffs more than another autonomous agent.
+5. Policy decisions must stay proportional to the actual project and SPEC.
+6. Outputs should be reviewable drafts, not unquestioned truth.
+
+See [LESSONS_LEARNED.md](LESSONS_LEARNED.md) for the longer write-up.
+
+---
+
+## Current Limitations
+
+- The scanner is heuristic and incomplete.
+- The policy engine is experimental and not a compliance framework.
+- Risk classification can still be wrong.
+- The generated SPEC, plan, and evidence require human review.
+- The project does not prove legal, security, privacy, or regulatory compliance.
+- There is no guarantee that the tool understands your architecture.
+- External agent execution is opt-in and depends on tools installed locally by the user.
+- Some experimental commands may change behavior or be simplified in future versions.
+
+Do not use this as a production approval system without your own review, tests, and controls.
+
+---
+
+## Ideal Future Architecture
+
+If I continued this as a serious system, I would split it into three layers:
+
+1. **Deterministic signals**
+   - file types;
+   - framework hints;
+   - changed files;
+   - policy packs;
+   - audit trail.
+
+2. **Agent-assisted reasoning**
+   - project profile refinement;
+   - SPEC clarification;
+   - risk analysis;
+   - implementation handoff review;
+   - evidence completeness review.
+
+3. **Human-confirmed governance**
+   - approved Project Profile;
+   - approved SPEC;
+   - explicit review;
+   - traceable policy decisions;
+   - PR-ready package.
+
+The CLI should remain local-first and transparent. The AI should help reason over context, but the user should approve the important decisions.
+
+---
+
+## How To Try It Locally
+
+The package is not published to PyPI. Install from GitHub or run from source.
+
+With `pipx`:
+
 ```bash
 pipx install git+https://github.com/mffdeo/devforge-ai-cli.git
 ```
 
-**Com uv:**
+With `uv`:
+
 ```bash
 uv tool install git+https://github.com/mffdeo/devforge-ai-cli.git
 ```
 
-Depois:
-```bash
-devforge --version
-```
-
-### Para desenvolvimento local
+For local development:
 
 ```bash
 git clone https://github.com/mffdeo/devforge-ai-cli.git
@@ -78,153 +199,41 @@ cd devforge-ai-cli
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
-devforge --help
+pytest -v
+ruff check .
 ```
 
----
-
-## Quickstart
+Try the full experimental flow:
 
 ```bash
-# 1. Inicialize a governança local
 devforge init
-
-# 2. Escaneie stack, risco e áreas sensíveis
 devforge scan
-
-# 3. Crie uma SPEC de mudança
-mkdir -p specs
-# edite specs/SPEC-AUTH-001.md
-
-# 4. Gere um plano governado
-devforge plan --spec specs/SPEC-AUTH-001.md
-
-# 5. Implemente com seu editor, agente ou IDE
-
-# 6. Verifique política antes do merge
+devforge profile approve
+devforge specify --idea "Describe your feature idea"
+devforge specify --spec specs/<SPEC-ID>.md --approve
+devforge plan --spec specs/<SPEC-ID>.md
+devforge implement --spec specs/<SPEC-ID>.md --agent custom --command "echo" --dry-run
+The `echo` command is used here as a safe dry-run example. In a real experiment, replace it with your local coding agent command.
 devforge policy check --diff
-
-# 7. Registre revisão humana quando exigida
-devforge review --issue ISSUE-AUTH-001 --approve
-
-# 8. Gere o pacote de evidência
-devforge evidence --issue ISSUE-AUTH-001
+devforge review --issue <SPEC-ID>
+devforge evidence --issue <SPEC-ID>
+devforge pr-ready --issue <SPEC-ID>
 ```
 
----
-
-## Exemplo: Plantão Fácil
-
-Imagine um sistema de troca de plantões. Você quer implementar login com e-mail/senha e controle de papéis (admin, supervisor, operador).
-
-Essa mudança toca autenticação, permissões e dados pessoais. O DevForge CLI eleva o risco para `Hardened` e exige evidências antes do merge.
-
-Ver exemplo completo em [`examples/plantao-facil/`](examples/plantao-facil/).
+Review every generated artifact before using it.
 
 ---
 
-## Comandos
+## Project Status: Experimental / Learning Project
 
-| Comando | O que faz |
-|---|---|
-| `devforge init` | Cria `.devforge/` com estrutura local |
-| `devforge scan` | Detecta stack, CI e áreas sensíveis |
-| `devforge plan --spec <arquivo>` | Gera Plan Pack, Context Pack e Policy Decision |
-| `devforge policy check --diff` | Avalia diff Git contra políticas locais |
-| `devforge evidence --issue <ID>` | Monta Evidence Pack auditável |
+DevForge CLI is a lab project.
 
-**Opções globais disponíveis em todos os comandos:**
-- `--plain` — saída texto simples (sem Rich)
-- `--json` — saída JSON válida para automação
-- `--version` — exibe a versão
+It is useful as a record of experiments around AI-assisted SDLC governance. It is not marketed as a finished product and should not be treated as a complete security, compliance, or review system.
 
-**Exit codes:**
-- `0` — ALLOW / pronto para PR
-- `1` — REQUIRE_APPROVAL / evidência pendente
-- `2` — DENY / mudança bloqueada
+The most valuable outcome was the lesson: **the right shape is a local-first AI governance harness, not a deterministic tool that claims to understand every project.**
 
 ---
 
-## Saídas geradas
+## License
 
-```
-.devforge/
-├── config.yml
-├── audit/
-│   └── audit.ndjson
-├── context/
-│   └── context-pack.md
-├── evidence/
-│   ├── EVID-ISSUE-AUTH-001.json
-│   └── EVID-ISSUE-AUTH-001.md
-├── plans/
-│   └── PLAN-SPEC-AUTH-001.md
-├── policy/
-│   ├── POLICY-CHECK-LATEST.json
-│   └── POLICY-DECISION-SPEC-AUTH-001.json
-└── prcp/
-    ├── project-profile.json
-    └── scan-report.md
-```
-
----
-
-## O que o DevForge CLI não é
-
-- Não é uma IDE
-- Não é um agente de código
-- Não chama LLM por padrão
-- Não envia código para a nuvem
-- Não requer cloud login
-- Não é um SaaS
-- Não substitui GitHub, GitLab ou Jira
-
-No MVP: `local-first · determinístico · sem cloud · Markdown + JSON · auditável`
-
----
-
-## Roadmap
-
-### MVP Community (v0.1.0)
-- [x] `devforge init`
-- [x] `devforge scan`
-- [x] `devforge plan`
-- [x] `devforge policy check`
-- [x] `devforge evidence`
-- [x] audit trail local (NDJSON)
-- [x] saída Markdown + JSON
-- [x] `--plain` e `--json`
-- [x] exemplo Plantão Fácil
-- [x] GitHub Pages
-- [x] CI com pytest
-
-### Próximo
-- [ ] GitHub Actions integration
-- [ ] policy packs customizados
-- [ ] múltiplos perfis PRCP
-- [ ] integração MCP local
-- [ ] adapters para agentes e IDEs
-
----
-
-## Contribuindo
-
-Contribuições são bem-vindas. Veja [CONTRIBUTING.md](CONTRIBUTING.md).
-
-```bash
-git clone https://github.com/mffdeo/devforge-ai-cli.git
-cd devforge-ai-cli
-python -m venv .venv && source .venv/bin/activate
-pip install -e ".[dev]"
-pytest && ruff check .
-```
-
----
-
-## Licença
-
-MIT License. Ver [LICENSE](LICENSE).
-
----
-
-> **Before merging AI-assisted code, run DevForge.**
+MIT License. See [LICENSE](LICENSE).

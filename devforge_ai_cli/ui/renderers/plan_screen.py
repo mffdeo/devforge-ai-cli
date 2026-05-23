@@ -37,6 +37,7 @@ def _context_table(result: PlanResult) -> Table:
     tbl = Table.grid(padding=(0, 1))
     tbl.add_column(style=t.MUTED, min_width=22)
     tbl.add_column(style=t.TEXT)
+    tbl.add_row("plan_confidence:", result.plan_confidence)
     tbl.add_row("allowed_uses:", ", ".join(result.allowed_uses[:3]))
     tbl.add_row("blocked_uses:", ", ".join(result.blocked_uses[:3]))
     tbl.add_row("required_evidence:", ", ".join(result.required_evidence))
@@ -117,9 +118,20 @@ def render_plan(result: PlanResult) -> None:
             f"[bold {t.TEXT}]{result.spec_path}[/bold {t.TEXT}]"
         ),
         Text.from_markup(
+            f"[bold {t.GREEN}]✔[/bold {t.GREEN}] [{t.MUTED}]Domínio:[/{t.MUTED}] "
+            f"[bold {t.TEXT}]{result.domain}[/bold {t.TEXT}]"
+        ),
+        Text.from_markup(
             f"[bold {t.GREEN}]✔[/bold {t.GREEN}] [{t.MUTED}]PRCP aplicado:[/{t.MUTED}] "
             f"[bold {t.AMBER}]{result.prcp_level}[/bold {t.AMBER}]"
         ),
+        Text.from_markup(
+            f"[bold {t.GREEN}]✔[/bold {t.GREEN}] [{t.MUTED}]Confiança do plano:[/{t.MUTED}] "
+            f"[bold {t.TEXT}]{result.plan_confidence}[/bold {t.TEXT}]"
+        ),
+        Text.from_markup(
+            f"[{t.MUTED}]{result.plan_recommendation}[/{t.MUTED}]"
+        ) if result.plan_recommendation else Text(""),
         Text.from_markup(
             f"[bold {t.GREEN}]✔[/bold {t.GREEN}] [{t.MUTED}]Política inicial:[/{t.MUTED}] "
             f"[bold {dc}]{result.policy_decision}[/bold {dc}]"

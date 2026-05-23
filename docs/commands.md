@@ -1,16 +1,30 @@
-# Referência de Comandos — DevForge CLI
+# Command Reference — DevForge CLI
+
+DevForge CLI is experimental. Commands are functional, but their outputs are drafts and should be reviewed before use.
+
+The CLI is not a production compliance system and does not prove that a change is safe, legal, secure, or ready to merge.
+
+## Suggested Flow
+
+```text
+init -> scan -> specify -> plan -> implement -> policy check -> review -> evidence -> pr-ready
+```
+
+Not every project needs every step. Review the generated artifacts and adapt the flow to your repository.
+
+---
 
 ## devforge init
 
-Bootstrap da governança local no repositório atual.
+Creates the local `.devforge/` structure.
 
 ```bash
 devforge init [--plain] [--json]
 ```
 
-**O que cria:**
+Creates:
 
-```
+```text
 .devforge/
 ├── config.yml
 ├── audit/audit.ndjson
@@ -21,144 +35,245 @@ devforge init [--plain] [--json]
 └── prcp/
 ```
 
-**Exit code:** sempre 0.
+Exit code: `0`.
 
 ---
 
 ## devforge scan
 
-Escaneia o repositório para detectar stack, CI e áreas sensíveis.
+Collects deterministic project signals and creates a draft Project Profile.
 
 ```bash
-devforge scan [--plain] [--json]
+devforge scan [--agent none|codex|custom] [--command "..."] [--dry-run] [--yes] [--plain] [--json]
 ```
 
-**Detecta:**
-- Stack: Node.js, TypeScript, Python, FastAPI, Django, Docker, CI (GitHub Actions, GitLab CI...)
-- Áreas sensíveis: auth, login, permissions, JWT, migrations, dados pessoais, pagamentos, database, sqlite, schema
-- Bancos por arquivo/conteúdo: `db_create.py`, `db.py`, `database.py`, `models.py`, `schema.sql`, `migrations/`, `alembic/`, `*.sqlite`, `*.sqlite3`, `*.db`, e padrões como `sqlite3`, `SQLAlchemy`, `CREATE TABLE`, `ALTER TABLE`, `DROP TABLE`, `db.create_all`
-- Sinais: `touches_auth`, `personal_data_possible`, `has_database`, `has_ci`...
+Generates:
 
-**Próximo passo sugerido:**
-- Primeira `.md` em `specs/` em ordem alfabética; preferência por uma SPEC com `AUTH` no nome se o projeto tiver sinais de auth/login/permissions. Fallback: `specs/SPEC-EXAMPLE-001.md`.
-
-**Gera:**
+- `.devforge/prcp/project-signals.json`
+- `.devforge/context/project-profile-brief.md`
 - `.devforge/prcp/project-profile.json`
 - `.devforge/prcp/scan-report.md`
 
-**Exit code:** sempre 0.
+Important:
+
+- The deterministic scan is only a draft.
+- `input()`, `user`, `session`, or similar generic terms may not mean personal data or auth.
+- If confidence is low or medium, review the Project Profile or use an external agent with `devforge scan --agent codex`.
+- Approve the profile explicitly with `devforge profile approve`.
+
+Exit code: `0`.
+
+---
+
+## devforge profile approve
+
+Marks the current Project Profile as approved after user review.
+
+```bash
+devforge profile approve [--yes] [--plain] [--json]
+```
+
+This command does not prove that the profile is correct. It records that the user reviewed and accepted it for the local workflow.
+
+---
+
+## devforge specify
+
+Turns a feature idea into a draft SPEC.
+
+```bash
+devforge specify --idea "Describe your feature idea" [--plain] [--json]
+devforge specify --spec specs/SPEC-ID.md --interactive
+devforge specify --spec specs/SPEC-ID.md --approve
+```
+
+Generates:
+
+- `specs/<SPEC-ID>.md`
+- `.devforge/context/specification-brief-<SPEC-ID>.md`
+
+Important:
+
+- The generated SPEC is a draft unless approved.
+- Gray areas should be reviewed before planning.
+- Approval means "good enough for this local experiment", not formal product approval.
 
 ---
 
 ## devforge plan --spec
 
-Gera Plan Pack governado a partir de uma SPEC.
+Generates plan artifacts from a SPEC.
 
 ```bash
-devforge plan --spec specs/SPEC-AUTH-001.md [--plain] [--json]
+devforge plan --spec specs/SPEC-ID.md [--plain] [--json]
 ```
 
-**Requer:** `devforge init` e `devforge scan` anteriores.
+Requires:
 
-**Lê:** SPEC em Markdown para extrair spec_id, título, objetivos, riscos.
+- `devforge init`
+- `devforge scan`
+- a Project Profile file
+- a SPEC file
 
-**Gera:**
-- `.devforge/plans/PLAN-SPEC-AUTH-001.md`
+Generates:
+
+- `.devforge/plans/PLAN-<SPEC-ID>.md`
 - `.devforge/context/context-pack.md`
-- `.devforge/policy/POLICY-DECISION-SPEC-AUTH-001.json`
+- `.devforge/context/agent-instructions.md`
+- `.devforge/context/implementation-brief-<SPEC-ID>.md`
+- `.devforge/policy/POLICY-DECISION-<SPEC-ID>.json`
 
-**Policy Decision inicial:**
-- `REQUIRE_APPROVAL` se task_elevation for Hardened ou SPEC mencionar auth/permissões/dados pessoais
-- `ALLOW` se não houver sinais sensíveis
+Important:
 
-**Exit code:** sempre 0.
+- The planner is experimental.
+- It should follow the Project Profile and SPEC, but generated tasks and policy decisions require review.
+- `session` / `sessao` alone should not be interpreted as authentication.
+- Negative scope such as "no database" or "sem banco" should not be treated as database work.
+
+Exit code: `0`.
+
+---
+
+## devforge implement
+
+Optionally calls an external local coding agent using the generated Implementation Brief.
+
+```bash
+devforge implement --spec specs/SPEC-ID.md --agent codex
+devforge implement --spec specs/SPEC-ID.md --agent custom --command "codex"
+devforge implement --spec specs/SPEC-ID.md --agent custom --command "echo" --dry-run
+```
+
+Important:
+
+- This command is opt-in.
+- It does not commit, push, merge, generate evidence, or record human review.
+- It invokes a local tool installed by the user.
+- Review all changes after the agent runs.
+
+Next step:
+
+```bash
+devforge policy check --diff
+```
 
 ---
 
 ## devforge policy check --diff
 
-Avalia o diff Git atual contra políticas locais.
+Evaluates the current Git diff against the local policy engine and latest Policy Decision.
 
 ```bash
 devforge policy check --diff [--plain] [--json]
 ```
 
-**Requer:** `devforge init`, `devforge scan`, `devforge plan`.
+Requires:
 
-**Analisa:**
-- Arquivos modificados (staged, unstaged, untracked)
-- Conteúdo do diff (limite: 50KB)
-- Profile PRCP do scan
-- Policy Decision prévia do plan
+- `devforge init`
+- `devforge scan`
+- `devforge plan`
 
-**Decisions:**
-- `ALLOW` — mudança sem sinais sensíveis
-- `REQUIRE_APPROVAL` — toca auth, permissões, dados pessoais, migration, ou PRCP Hardened
-- `DENY` — diff contém marcadores de chave privada ou segredo evidente
+Decisions:
 
-**Gera:**
-- `.devforge/policy/POLICY-CHECK-LATEST.json`
+- `ALLOW`
+- `REQUIRE_APPROVAL`
+- `DENY`
 
-**Exit codes:**
+Important:
+
+- The policy engine is experimental.
+- It is not a compliance framework.
+- Review the reasons and required evidence.
+- Generated `.devforge/` files are not treated as application code.
+
+Exit codes:
+
 - `0` — ALLOW
-- `1` — REQUIRE_APPROVAL
+- `1` — REQUIRE_APPROVAL or precondition failure
 - `2` — DENY
+
+---
+
+## devforge review
+
+Records explicit human review for an issue or SPEC.
+
+```bash
+devforge review --issue SPEC-ID --approve [--reviewer "Name"] [--plain] [--json]
+```
+
+Important:
+
+- Human review is only satisfied by explicit review artifacts.
+- AI review notes do not replace human approval.
+- This command records a local review artifact and audit event.
 
 ---
 
 ## devforge evidence --issue
 
-Monta Evidence Pack auditável antes do PR/merge.
+Builds an Evidence Pack from the latest policy check.
 
 ```bash
-devforge evidence --issue ISSUE-AUTH-001 [--plain] [--json]
+devforge evidence --issue SPEC-ID [--plain] [--json]
 ```
 
-**Requer:** `devforge init`, `devforge scan`, `devforge plan`, `devforge policy check`.
-Quando a política retorna `REQUIRE_APPROVAL`, rode `devforge review --issue <ISSUE-ID>` antes de gerar um Evidence Pack pronto para merge.
+Collects required evidence such as:
 
-**Coleta:**
-- Changed files do último policy check
-- Diff stat do Git
-- Status de cada evidência obrigatória:
-  - `test_report` — busca em `.devforge/test-reports/`, `coverage.xml`, `pytest*.xml`
-  - `human_review` — busca em `.devforge/reviews/HUMAN-REVIEW-*.md`
-  - `rollback_plan` — busca em `.devforge/rollback/ROLLBACK-*.md`
-  - `audit_log` — sempre presente se `devforge init` foi rodado
+- `test_report`
+- `human_review`
+- `rollback_plan`
+- `audit_log`
 
-**Final decisions:**
-- `allowed` — ALLOW + evidências mínimas presentes
-- `approved_with_human_review` — REQUIRE_APPROVAL + todas evidências obrigatórias presentes, incluindo `human_review`
-- `pending_human_review` — REQUIRE_APPROVAL + `human_review` ausente
-- `pending_required_evidence` — evidências obrigatórias ausentes
-- `denied` — policy check foi DENY
+Only required evidence is enforced. For lightweight local changes, the required evidence may be just `test_report` and `audit_log`.
 
-**Gera:**
+Generates:
+
 - `.devforge/evidence/EVID-<ISSUE-ID>.json`
 - `.devforge/evidence/EVID-<ISSUE-ID>.md`
 
-**Exit codes:**
-- `0` — ready_for_merge
-- `1` — pending_human_review ou pending_required_evidence
-- `2` — denied
+---
+
+## devforge pr-ready
+
+Prepares commit and PR guidance after an approved Evidence Pack.
+
+```bash
+devforge pr-ready --issue SPEC-ID [--plain] [--json]
+```
+
+Generates:
+
+- `.devforge/pr/PR-<ISSUE-ID>.md`
+- `.devforge/pr/commit-plan-<ISSUE-ID>.md`
+
+Important:
+
+- It does not run `git add`.
+- It does not commit.
+- It does not push.
+- It does not merge.
+- Treat the generated PR body and commit plan as guidance.
 
 ---
 
-## Flags globais
+## Common Flags
 
-| Flag | Descrição |
+| Flag | Description |
 |---|---|
-| `--plain` | Saída texto simples, sem painéis Rich |
-| `--json` | Saída JSON válida no stdout |
-| `--version` / `-v` | Exibe versão e sai |
-| `--help` | Exibe ajuda |
+| `--plain` | Plain text output |
+| `--json` | JSON output for automation |
+| `--help` | Show command help |
+| `--version` / `-v` | Show version |
 
 ---
 
-## Exit codes
+## Exit Codes
 
-| Código | Significado |
+| Code | Meaning |
 |---|---|
-| `0` | Sucesso / ALLOW aprovado / REQUIRE_APPROVAL aprovado com revisão humana |
-| `1` | REQUIRE_APPROVAL / evidência pendente / erro de precondição |
-| `2` | DENY / mudança bloqueada |
+| `0` | Success / ALLOW / ready state |
+| `1` | REQUIRE_APPROVAL / missing evidence / precondition failure |
+| `2` | DENY |
+
+Always inspect generated artifacts before relying on them.

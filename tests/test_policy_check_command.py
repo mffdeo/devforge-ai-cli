@@ -7,6 +7,7 @@ from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.plan import run_plan
 from devforge_ai_cli.commands.policy_check import run_policy_check
 from devforge_ai_cli.commands.scan import run_scan_cmd
+from devforge_ai_cli.core.git import filter_ignored_diff_content
 from devforge_ai_cli.policy_engine.engine import evaluate_policy
 
 # ── helpers ───────────────────────────────────────────────────────────────────
@@ -31,8 +32,34 @@ PROFILE_STANDARD = {
     "sensitive_areas": [],
 }
 
+PROFILE_PYTHON_CLI_LOW_RISK = {
+    "project_type": "python_cli",
+    "detected_stack": ["Python"],
+    "has_database": False,
+    "has_auth": False,
+    "personal_data_possible": False,
+    "external_integrations": False,
+    "production_impact": "low",
+    "profile_status": "approved",
+    "approved_by_user": True,
+    "prcp": {"baseline_level": "Minimal", "task_elevation": "Minimal"},
+    "signals": {
+        "has_database": False,
+        "touches_auth": False,
+        "personal_data_possible": False,
+        "external_integrations": False,
+    },
+    "sensitive_areas": [],
+}
+
 EXISTING_POL_REQUIRE = {"decision": "REQUIRE_APPROVAL"}
 EXISTING_POL_ALLOW = {"decision": "ALLOW"}
+EXISTING_POL_CLI_HISTORY_ALLOW = {
+    "decision": "ALLOW",
+    "domain": "cli_session_history",
+    "prcp_level": "Minimal",
+    "required_evidence": ["test_report", "audit_log"],
+}
 
 
 def _full_setup(tmp_path: Path) -> Path:
@@ -54,6 +81,19 @@ def _call(tmp_path, *, files=None, content="", plain=True, output_json=False):
         cwd=tmp_path,
         changed_files_override=files or [],
         diff_content_override=content,
+    )
+
+
+def _write_profile_and_policy(tmp_path: Path, profile: dict, policy: dict) -> None:
+    devforge = tmp_path / ".devforge"
+    prcp = devforge / "prcp"
+    policy_dir = devforge / "policy"
+    prcp.mkdir(parents=True, exist_ok=True)
+    policy_dir.mkdir(parents=True, exist_ok=True)
+    (prcp / "project-profile.json").write_text(json.dumps(profile, indent=2, ensure_ascii=False))
+    payload = {"spec_id": "SPEC-HISTORICO-CALCULOS-SESSAO-001", **policy}
+    (policy_dir / "POLICY-DECISION-SPEC-HISTORICO-CALCULOS-SESSAO-001.json").write_text(
+        json.dumps(payload, indent=2, ensure_ascii=False)
     )
 
 
@@ -136,6 +176,63 @@ def test_engine_require_approval_from_existing_policy():
     assert "previous_policy_require_approval" in result["reasons"]
 
 
+def test_engine_light_cli_history_policy_ignores_negated_scope_terms():
+    diff = """
+diff --git a/specs/SPEC-HISTORICO-CALCULOS-SESSAO-001.md b/specs/SPEC-HISTORICO-CALCULOS-SESSAO-001.md
+@@
++- Sem auth.
++- Sem banco/schema/migração.
++- Sem nuvem.
++- Sem dados pessoais.
+diff --git a/calculator.py b/calculator.py
+@@
++history.append((expression, result))
+"""
+    result = evaluate_policy(
+        ["calculator.py", "specs/SPEC-HISTORICO-CALCULOS-SESSAO-001.md"],
+        diff,
+        PROFILE_PYTHON_CLI_LOW_RISK,
+        EXISTING_POL_CLI_HISTORY_ALLOW,
+    )
+    assert result["decision"] == "ALLOW"
+    assert result["required_evidence"] == ["test_report", "audit_log"]
+    assert "human_review" not in result["required_evidence"]
+    assert "rollback_plan" not in result["required_evidence"]
+
+
+def test_engine_light_cli_history_policy_handles_string_false_profile_values():
+    profile = json.loads(json.dumps(PROFILE_PYTHON_CLI_LOW_RISK))
+    profile["has_database"] = "false"
+    profile["has_auth"] = "false"
+    profile["personal_data_possible"] = "false"
+    profile["external_integrations"] = "false"
+    result = evaluate_policy(
+        ["calculator.py"],
+        "+# sem auth, sem banco e sem nuvem\n",
+        profile,
+        EXISTING_POL_CLI_HISTORY_ALLOW,
+    )
+    assert result["decision"] == "ALLOW"
+    assert result["required_evidence"] == ["test_report", "audit_log"]
+
+
+def test_filter_ignored_diff_content_removes_devforge_generated_context():
+    diff = """
+diff --git a/.devforge/context/context-pack.md b/.devforge/context/context-pack.md
+@@
++- login/auth
++- banco
+diff --git a/calculator.py b/calculator.py
+@@
++history = []
+"""
+    filtered = filter_ignored_diff_content(diff)
+    assert ".devforge/context/context-pack.md" not in filtered
+    assert "login/auth" not in filtered
+    assert "calculator.py" in filtered
+    assert "history = []" in filtered
+
+
 def test_engine_required_evidence_hardened():
     result = evaluate_policy(["src/auth.py"], "", PROFILE_HARDENED, None)
     assert "test_report" in result["required_evidence"]
@@ -156,6 +253,37 @@ def test_policy_check_auth_file_require_approval(tmp_path):
     _full_setup(tmp_path)
     exit_code = _call(tmp_path, files=["apps/api/src/auth/login.py"])
     assert exit_code == 1
+
+
+def test_policy_check_light_cli_history_plan_stays_allow(tmp_path):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    _write_profile_and_policy(
+        tmp_path,
+        PROFILE_PYTHON_CLI_LOW_RISK,
+        EXISTING_POL_CLI_HISTORY_ALLOW,
+    )
+    diff = """
+diff --git a/specs/SPEC-HISTORICO-CALCULOS-SESSAO-001.md b/specs/SPEC-HISTORICO-CALCULOS-SESSAO-001.md
+@@
++- Sem auth.
++- Sem banco/schema/migração.
++- Sem nuvem.
+diff --git a/calculator.py b/calculator.py
+@@
++history = []
+"""
+    exit_code = _call(
+        tmp_path,
+        files=["calculator.py", "specs/SPEC-HISTORICO-CALCULOS-SESSAO-001.md"],
+        content=diff,
+    )
+    data = json.loads((tmp_path / ".devforge" / "policy" / "POLICY-CHECK-LATEST.json").read_text())
+    assert exit_code == 0
+    assert data["decision"] == "ALLOW"
+    assert data["effective_prcp_level"] == "Minimal"
+    assert data["required_evidence"] == ["test_report", "audit_log"]
+    assert "human_review" not in data["required_evidence"]
+    assert "rollback_plan" not in data["required_evidence"]
 
 
 def test_policy_check_generates_latest_json(tmp_path):

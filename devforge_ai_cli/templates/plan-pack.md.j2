@@ -4,7 +4,12 @@
 **SPEC Path:** {{ spec_path }}
 **Generated:** {{ timestamp }}
 **PRCP:** {{ prcp_level }}
+**Domain:** {{ domain }}
+**Plan Confidence:** {{ plan_confidence }}
 **Policy Decision:** {{ policy_decision }}
+{% if plan_recommendation %}
+**Recommended Review:** {{ plan_recommendation }}
+{% endif %}
 
 ## Tarefas
 

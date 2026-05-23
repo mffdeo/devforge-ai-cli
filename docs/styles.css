@@ -943,6 +943,144 @@ pre {
   color: rgba(255, 255, 255, .25);
 }
 
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  margin: 0 0 16px;
+  padding: 6px 11px;
+  border: 1px solid rgba(246, 182, 50, .42);
+  border-radius: 999px;
+  background: rgba(246, 182, 50, .08);
+  color: var(--amber);
+  font-family: var(--sans);
+  font-size: .72rem;
+  font-weight: 800;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+}
+
+.lab-note,
+.panel-note {
+  max-width: 620px;
+  margin: 18px 0 0;
+  color: #c9d4df;
+  font-family: var(--sans);
+  font-size: .92rem;
+  line-height: 1.7;
+}
+
+.story-panel {
+  padding: 0 28px 28px;
+}
+
+.story-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 18px;
+}
+
+.narrative-card,
+.lab-card {
+  min-height: 0;
+  border: 1px solid rgba(103, 209, 255, .24);
+  border-radius: 7px;
+  background: linear-gradient(180deg, rgba(6, 22, 37, .74), rgba(4, 14, 24, .82));
+}
+
+.narrative-card {
+  padding: 20px;
+}
+
+.narrative-card h3 {
+  margin: 0 0 8px;
+  color: var(--cyan);
+  font-size: 1.02rem;
+  letter-spacing: -.04em;
+}
+
+.narrative-card p {
+  margin: 0;
+  color: var(--muted);
+  font-family: var(--sans);
+  font-size: .92rem;
+  line-height: 1.7;
+}
+
+.warning-card {
+  border-color: rgba(246, 182, 50, .34);
+  background: linear-gradient(180deg, rgba(42, 28, 8, .38), rgba(11, 18, 27, .82));
+}
+
+.lab-flow .flow-card {
+  min-height: 154px;
+}
+
+.lab-card {
+  display: block;
+  padding: 20px;
+}
+
+.lesson-list {
+  display: grid;
+  gap: 12px;
+  max-width: 890px;
+  margin: 0 auto;
+  padding: 0;
+  list-style: none;
+}
+
+.lesson-list li {
+  position: relative;
+  padding: 14px 16px 14px 42px;
+  border: 1px solid rgba(103, 209, 255, .2);
+  border-radius: 7px;
+  background: rgba(6, 22, 37, .62);
+  color: #d8e4ef;
+  font-family: var(--sans);
+  font-size: .94rem;
+}
+
+.lesson-list li::before {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  content: ">";
+  color: var(--cyan);
+  font-family: var(--mono);
+  font-weight: 800;
+}
+
+.panel-note {
+  margin: 22px auto 0;
+  text-align: center;
+}
+
+.panel-note a {
+  color: var(--cyan);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+.command-stack {
+  overflow: auto;
+  min-height: 128px;
+  margin: 0 0 10px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, .13);
+  border-radius: 6px;
+  background: rgba(8, 13, 22, .75);
+}
+
+.command-stack code {
+  color: #d4e7f2;
+  font-size: .76rem;
+  line-height: 1.55;
+}
+
+.lab-cta {
+  border-color: rgba(246, 182, 50, .28);
+}
+
 @media (max-width: 1040px) {
   .hero {
     grid-template-columns: 1fr;
@@ -955,6 +1093,7 @@ pre {
 
   .quick-cards,
   .feature-grid,
+  .story-grid,
   .cli-grid,
   .install-grid,
   .cta-panel,
@@ -1036,6 +1175,7 @@ pre {
 
   .quick-cards,
   .feature-grid,
+  .story-grid,
   .cli-grid,
   .install-grid,
   .cta-panel,
