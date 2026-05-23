@@ -596,10 +596,61 @@ def test_plan_python_cli_history_policy_is_allow_without_human_review_or_rollbac
     )
     assert policy["decision"] == "ALLOW"
     assert policy["prcp_level"] in {"Minimal", "Standard"}
-    assert "test_report" in policy["required_evidence"]
-    assert "audit_log" in policy["required_evidence"]
+    assert policy["required_evidence"] == ["test_report", "audit_log"]
     assert "human_review" not in policy["required_evidence"]
     assert "rollback_plan" not in policy["required_evidence"]
+
+    context = (tmp_path / ".devforge" / "context" / "context-pack.md").read_text()
+    required_context = context.split("## Required Evidence", maxsplit=1)[1]
+    assert "test_report" in required_context
+    assert "audit_log" in required_context
+    assert "human_review" not in required_context
+    assert "rollback_plan" not in required_context
+
+
+def test_plan_python_cli_history_plain_output_shows_light_policy(tmp_path, capsys):
+    run_init(plain=True, output_json=False, cwd=tmp_path)
+    (tmp_path / "calculator.py").write_text("print('calculator')\n")
+    _write_project_profile(tmp_path, _python_cli_profile())
+    spec = _make_spec(
+        tmp_path,
+        content=SPEC_CALC_HISTORY_CONTENT,
+        name="SPEC-HISTORICO-CALCULOS-SESSAO-001.md",
+    )
+
+    capsys.readouterr()
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+
+    assert "Domain: cli_session_history" in out
+    assert "PRCP: Hardened" not in out
+    assert "Política: ALLOW" in out
+    assert "Evidências: test_report, audit_log" in out
+    assert "human_review" not in out
+    assert "rollback_plan" not in out
+
+
+def test_plan_python_cli_history_handles_string_false_profile_values(tmp_path):
+    profile = _python_cli_profile()
+    profile["has_database"] = "false"
+    profile["has_auth"] = "false"
+    profile["personal_data_possible"] = "false"
+    profile["external_integrations"] = "false"
+    profile["signals"]["has_database"] = "false"
+    profile["signals"]["touches_auth"] = "false"
+    profile["signals"]["personal_data_possible"] = "false"
+    profile["signals"]["external_integrations"] = "false"
+    spec_data = {
+        "spec_id": "SPEC-HISTORICO-CALCULOS-SESSAO-001",
+        "title": "Histórico de cálculos da sessão",
+        "content": SPEC_CALC_HISTORY_CONTENT,
+        "sections": {"objetivo": "Adicionar histórico de cálculos da sessão na calculadora CLI."},
+    }
+
+    assert compute_effective_prcp(profile, spec_data) in {"Minimal", "Standard"}
+    decision, required = determine_policy(profile, spec_data)
+    assert decision == "ALLOW"
+    assert required == ["test_report", "audit_log"]
 
 
 def test_plan_python_cli_history_context_blocks_out_of_scope_uses(tmp_path):

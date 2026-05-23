@@ -7,7 +7,11 @@ from devforge_ai_cli.core.evidence_rules import (
     check_review_request,
     evaluate_required_evidence,
 )
-from devforge_ai_cli.core.git import get_changed_files, get_diff_content
+from devforge_ai_cli.core.git import (
+    filter_ignored_diff_content,
+    get_changed_files,
+    get_diff_content,
+)
 from devforge_ai_cli.core.ignore import should_ignore_path
 from devforge_ai_cli.core.paths import get_audit_file, get_devforge_dir
 from devforge_ai_cli.core.project import require_init
@@ -59,7 +63,7 @@ def run_policy_check(
         diff_content = diff_content_override or ""
     elif diff:
         changed_files = get_changed_files(base)
-        diff_content = get_diff_content(base)
+        diff_content = filter_ignored_diff_content(get_diff_content(base))
     else:
         changed_files = []
         diff_content = ""

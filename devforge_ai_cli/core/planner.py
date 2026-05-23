@@ -171,6 +171,18 @@ def _hits(text: str, terms: set[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _as_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "sim", "s"}
+    return bool(value)
+
+
 def _strip_patterns(text: str, patterns: tuple[str, ...]) -> str:
     cleaned = text
     for pattern in patterns:
@@ -222,9 +234,9 @@ def _cli_history_hits(text: str) -> bool:
 
 def _profile_bool(profile: dict, top_level: str, signal_key: str | None = None) -> bool:
     if top_level in profile:
-        return bool(profile.get(top_level))
+        return _as_bool(profile.get(top_level))
     signals = profile.get("signals", {})
-    return bool(signals.get(signal_key or top_level, False))
+    return _as_bool(signals.get(signal_key or top_level, False))
 
 
 def _low_risk_python_cli_profile(profile: dict) -> bool:
@@ -287,7 +299,7 @@ class _PlanClassification:
 def _confidence_for(profile: dict, *, clear_domain: bool) -> str:
     profile_confidence = str(profile.get("confidence", "low")).lower()
     profile_approved = profile.get("profile_status") == "approved"
-    requires_agent_review = bool(profile.get("requires_agent_review", False))
+    requires_agent_review = _as_bool(profile.get("requires_agent_review", False))
 
     if clear_domain:
         if profile_approved and profile_confidence == "high":
@@ -529,7 +541,7 @@ def determine_policy(profile: dict, spec_data: dict) -> tuple[str, list[str]]:
 
     hardened = effective_prcp == "Hardened"
     touches_auth = domain == "auth" or (
-        _profile_bool(profile, "has_auth", "touches_auth") and profile.get("has_auth", False)
+        _profile_bool(profile, "has_auth", "touches_auth")
     )
     personal_data = _profile_bool(profile, "personal_data_possible")
     external_integration = _profile_bool(profile, "external_integrations") or _external_hits(_spec_lower(spec_data))

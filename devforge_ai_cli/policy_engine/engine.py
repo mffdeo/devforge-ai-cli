@@ -1,3 +1,5 @@
+import re
+
 from devforge_ai_cli.policy_engine.decisions import PolicyDecision
 from devforge_ai_cli.policy_engine.rules import (
     AUTH_KWS,
@@ -7,6 +9,75 @@ from devforge_ai_cli.policy_engine.rules import (
     SECRET_EXPOSURE_MARKERS,
 )
 
+_AUTH_NEGATION_PATTERNS = (
+    r"\bsem\s+(?:login\s*/\s*auth|login|auth|autenticação|autenticacao|senha|token|permissões|permissoes|papéis|papeis)\b",
+    r"\bn[aã]o\s+(?:adicionar|usar|criar|implementar|exigir)\s+(?:login|auth|autenticação|autenticacao|senha|token|permissões|permissoes|papéis|papeis)\b",
+    r"\bno\s+(?:login|auth|authentication|password|token|rbac|roles?|permissions?)\b",
+    r"\bwithout\s+(?:login|auth|authentication|password|token|rbac|roles?|permissions?)\b",
+)
+_DB_NEGATION_PATTERNS = (
+    r"\bsem\s+(?:arquivo|persistência|persistencia|banco|db|database|sqlite|schema|tabela|migração|migracao|migration|migrate)(?:(?:\s*/\s*|\s*,\s*|\s*;\s*|\s+ou\s+|\s+e\s+)(?:arquivo|persistência|persistencia|banco|db|database|sqlite|schema|tabela|migração|migracao|migration|migrate))*\b",
+    r"\bn[aã]o\s+(?:adicionar|usar|criar|alterar|persistir|tocar|exigir)\s+(?:arquivo|persistência|persistencia|banco|db|database|sqlite|schema|tabela|migração|migracao|migration|migrate)\b",
+    r"\bno\s+(?:file|db|database|sqlite|schema|persistence|migration)\b",
+    r"\bwithout\s+(?:file|db|database|sqlite|schema|persistence|migration)\b",
+)
+
+
+def _as_bool(value: object) -> bool:
+    if isinstance(value, bool):
+        return value
+    if value is None:
+        return False
+    if isinstance(value, (int, float)):
+        return value != 0
+    if isinstance(value, str):
+        return value.strip().lower() in {"1", "true", "yes", "y", "sim", "s"}
+    return bool(value)
+
+
+def _strip_patterns(text: str, patterns: tuple[str, ...]) -> str:
+    cleaned = text
+    for pattern in patterns:
+        cleaned = re.sub(pattern, " ", cleaned, flags=re.IGNORECASE)
+    return cleaned
+
+
+def _policy_content_for_detection(diff_content: str) -> str:
+    cleaned = diff_content.lower()
+    cleaned = _strip_patterns(cleaned, _AUTH_NEGATION_PATTERNS)
+    cleaned = _strip_patterns(cleaned, _DB_NEGATION_PATTERNS)
+    return cleaned
+
+
+def _profile_bool(profile: dict, key: str, signal_key: str | None = None) -> bool:
+    if key in profile:
+        return _as_bool(profile.get(key))
+    return _as_bool(profile.get("signals", {}).get(signal_key or key))
+
+
+def _is_low_risk_python_cli_profile(profile: dict) -> bool:
+    production_impact = str(profile.get("production_impact", "low")).lower()
+    return (
+        profile.get("project_type") == "python_cli"
+        and not _profile_bool(profile, "has_database")
+        and not _profile_bool(profile, "has_auth", "touches_auth")
+        and not _profile_bool(profile, "personal_data_possible")
+        and not _profile_bool(profile, "external_integrations")
+        and production_impact not in {"high", "critical", "production"}
+    )
+
+
+def _is_light_plan_policy(existing_policy: dict | None, profile: dict) -> bool:
+    if not existing_policy:
+        return False
+    return (
+        existing_policy.get("decision") == PolicyDecision.ALLOW.value
+        and existing_policy.get("domain") in {"cli_session_history", "generic_cli_feature"}
+        and existing_policy.get("prcp_level") in {"Minimal", "Standard"}
+        and set(existing_policy.get("required_evidence", [])) <= {"test_report", "audit_log"}
+        and _is_low_risk_python_cli_profile(profile)
+    )
+
 
 def evaluate_policy(
     changed_files: list[str],
@@ -15,7 +86,7 @@ def evaluate_policy(
     existing_policy: dict | None,
 ) -> dict:
     reasons: list[str] = []
-    diff_lower = diff_content.lower()
+    diff_lower = _policy_content_for_detection(diff_content)
     all_paths = " ".join(changed_files).lower()
 
     # ── no changes ────────────────────────────────────────────────────────────
@@ -52,12 +123,13 @@ def evaluate_policy(
     prcp = profile.get("prcp", {})
     signals = profile.get("signals", {})
     task_elevation = prcp.get("task_elevation", "Standard")
+    light_plan_policy = _is_light_plan_policy(existing_policy, profile)
 
-    if task_elevation == "Hardened":
+    if task_elevation == "Hardened" and not light_plan_policy:
         _add(reasons, "hardened_prcp")
-    if profile.get("has_auth", signals.get("touches_auth")):
+    if _as_bool(profile.get("has_auth", signals.get("touches_auth"))):
         _add(reasons, "touches_auth")
-    if profile.get("personal_data_possible", signals.get("personal_data_possible")):
+    if _as_bool(profile.get("personal_data_possible", signals.get("personal_data_possible"))):
         _add(reasons, "sensitive_data_possible")
 
     # ── existing policy ───────────────────────────────────────────────────────

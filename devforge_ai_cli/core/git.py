@@ -92,3 +92,37 @@ def get_diff_content(cwd: Path | None = None, max_bytes: int = 50_000) -> str:
         except (subprocess.SubprocessError, FileNotFoundError):
             pass
     return content
+
+
+def filter_ignored_diff_content(diff_content: str) -> str:
+    """Drop unified-diff file sections for ignored paths.
+
+    `get_changed_files()` already filters `.devforge/`, venvs and caches,
+    but raw `git diff` content still includes those generated files. Policy
+    checks must not treat DevForge's own out-of-scope wording as application
+    risk signals.
+    """
+    kept: list[str] = []
+    current: list[str] = []
+    ignored = False
+
+    def flush() -> None:
+        if current and not ignored:
+            kept.extend(current)
+
+    for line in diff_content.splitlines(keepends=True):
+        if line.startswith("diff --git "):
+            flush()
+            current = [line]
+            ignored = False
+            parts = line.strip().split()
+            if len(parts) >= 4:
+                path = parts[3]
+                if path.startswith("b/"):
+                    path = path[2:]
+                ignored = should_ignore_path(path)
+            continue
+        current.append(line)
+
+    flush()
+    return "".join(kept)
