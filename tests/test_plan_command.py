@@ -140,6 +140,10 @@ def test_plan_generates_context_pack(tmp_path):
     assert "Allowed Uses" in content
     assert "Blocked Uses" in content
     assert "Required Evidence" in content
+    assert "Project Profile" in content
+    assert "status: draft" in content
+    assert "source: deterministic" in content
+    assert "confidence:" in content
 
 
 def test_plan_generates_policy_decision(tmp_path):
@@ -478,6 +482,20 @@ def test_plan_with_draft_spec_warns_but_continues(tmp_path, capsys):
     out = capsys.readouterr().out
     assert "SPEC status is Draft. Consider resolving gray areas and approving it before planning." in out
     assert (tmp_path / ".devforge" / "plans" / "PLAN-SPEC-DRAFT-001.md").exists()
+
+
+def test_plan_warns_when_project_profile_not_approved(tmp_path, capsys):
+    _init_and_scan(tmp_path)
+    spec = _make_spec(
+        tmp_path,
+        content="# SPEC-APPROVED-001 — Approved\n\nStatus: Approved\n\n## Objetivo\n\nValidar profile warning.",
+        name="SPEC-APPROVED-001.md",
+    )
+    capsys.readouterr()
+    run_plan(spec=str(spec), plain=True, output_json=False, cwd=tmp_path)
+    out = capsys.readouterr().out
+    assert "Project Profile is preliminary and not approved." in out
+    assert "devforge profile approve" in out
 
 
 def test_plan_with_approved_spec_does_not_warn(tmp_path, capsys):

@@ -203,13 +203,15 @@ def test_scan_detects_permission_by_folder_name(tmp_path):
 def test_scan_input_does_not_create_personal_data_signal(tmp_path):
     _init(tmp_path)
     (tmp_path / "calculator.py").write_text(
-        "value = input('Enter a number: ')\n"
+        "user_value = input('Enter a user choice: ')\n"
         "print(int(value) + 1)\n"
     )
     result = run_scan("calculator", tmp_path)
     assert result.signals["user_interaction"] is True
     assert result.signals["personal_data_possible"] is False
     assert result.personal_data_possible is False
+    assert "user" not in result.sensitive_areas
+    assert "rg" not in result.sensitive_areas
 
 
 def test_scan_python_cli_simple_project_type(tmp_path):
@@ -235,6 +237,48 @@ def test_scan_python_cli_simple_does_not_elevate_to_hardened(tmp_path):
     assert result.signals["personal_data_possible"] is False
 
 
+def test_scan_rg_isolated_in_document_context_marks_personal_data(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "registration.py").write_text(
+        "documento = input('Informe RG: ')\n"
+        "print(documento)\n"
+    )
+    result = run_scan("registration", tmp_path)
+    assert result.personal_data_possible is True
+    assert "rg" in result.sensitive_areas
+    assert result.task_elevation == "Hardened"
+
+
+def test_scan_rg_substring_does_not_mark_personal_data(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text(
+        "merge_result = input('Enter user option: ')\n"
+        "print(merge_result)\n"
+    )
+    result = run_scan("calculator", tmp_path)
+    assert result.signals["user_interaction"] is True
+    assert result.personal_data_possible is False
+    assert "rg" not in result.sensitive_areas
+    assert result.task_elevation != "Hardened"
+
+
+def test_project_signals_separates_interaction_and_sensitive_hits(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text(
+        "user_value = input('Enter user option: ')\n"
+        "print(user_value)\n"
+    )
+    run_scan("calculator", tmp_path)
+    signals = json.loads((tmp_path / ".devforge" / "prcp" / "project-signals.json").read_text())
+    interaction_keywords = {hit["keyword"] for hit in signals["user_interaction_hits"]}
+    strong_keywords = {hit["keyword"] for hit in signals["strong_sensitive_hits"]}
+    weak_keywords = {hit["keyword"] for hit in signals["weak_sensitive_hits"]}
+    assert {"input", "enter", "option"} <= interaction_keywords
+    assert "user" in weak_keywords
+    assert "user" not in strong_keywords
+    assert "raw_sensitive_hits" not in signals
+
+
 # ── output modes ──────────────────────────────────────────────────────────────
 
 def test_scan_json_output(tmp_path, capsys):
@@ -250,6 +294,9 @@ def test_scan_json_output(tmp_path, capsys):
     assert "project_type" in data
     assert "confidence" in data
     assert "source" in data
+    assert "profile_status" in data
+    assert "requires_agent_review" in data
+    assert "requires_user_approval" in data
     assert "recommended_next_step" in data
     assert "baseline_level" in data
     assert "task_elevation" in data
@@ -375,14 +422,34 @@ def test_scan_profile_json_content(tmp_path):
     assert "signals" in data
     assert "detected_stack" in data
     assert data["source"] == "deterministic"
+    assert data["profile_status"] == "draft"
+    assert data["requires_user_approval"] is True
     assert "project_type" in data
     assert "confidence" in data
+
+
+def test_scan_generates_profile_status_draft_by_default(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
+    run_scan_cmd(plain=True, output_json=False, cwd=tmp_path)
+    data = json.loads((tmp_path / ".devforge" / "prcp" / "project-profile.json").read_text())
+    assert data["profile_status"] == "draft"
+    assert data["source"] == "deterministic"
+    assert data["requires_user_approval"] is True
 
 
 def test_scan_low_confidence_recommends_agent(tmp_path):
     _init(tmp_path)
     result = run_scan("empty", tmp_path)
     assert result.confidence == "low"
+    assert result.suggested_next_command == "devforge scan --agent codex"
+
+
+def test_scan_medium_confidence_recommends_agent(tmp_path):
+    _init(tmp_path)
+    (tmp_path / "db.py").write_text("import sqlite3\n")
+    result = run_scan("db-project", tmp_path)
+    assert result.confidence == "medium"
     assert result.suggested_next_command == "devforge scan --agent codex"
 
 

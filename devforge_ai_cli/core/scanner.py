@@ -1,4 +1,5 @@
 import json
+import re
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,16 +12,34 @@ _AUTH_KEYWORDS = {
     "role", "roles", "rbac", "jwt",
 }
 _SECURITY_KEYWORDS = {"token", "secret", "password", "senha"}
+_KEY_KEYWORDS = {"api_key", "private_key"}
 _PERSONAL_DATA_KEYWORDS = {
     "email", "cpf", "phone", "telefone", "address", "endereco", "endereço",
     "full_name", "first_name", "last_name", "nome_completo", "birthdate", "birth_date", "data_nascimento",
-    "personal data", "dados pessoais", "documento", "rg", "cnpj",
+    "personal data", "dados pessoais", "document", "documento", "cnpj",
+    "data de nascimento", "full name", "nome completo",
 }
+_USER_CONTEXT_KEYWORDS = {"username", "user_id", "user email", "user password", "user cpf", "user document", "user profile", "auth user"}
+_USER_INTERACTION_KEYWORDS = {"input", "enter", "choice", "option", "user input"}
+_WEAK_KEYWORDS = {"user", "users", "rg"}
 _RISK_KEYWORDS = {
     "payment", "billing", "pagamento", "cobrança",
     "migration", "database", "middleware",
 }
-_RAW_KEYWORDS = sorted(_AUTH_KEYWORDS | _SECURITY_KEYWORDS | _PERSONAL_DATA_KEYWORDS | _RISK_KEYWORDS | {"user", "users", "input", "choice", "enter"})
+_RAW_KEYWORDS = sorted(
+    _AUTH_KEYWORDS
+    | _SECURITY_KEYWORDS
+    | _KEY_KEYWORDS
+    | _PERSONAL_DATA_KEYWORDS
+    | _USER_CONTEXT_KEYWORDS
+    | _USER_INTERACTION_KEYWORDS
+    | _WEAK_KEYWORDS
+    | _RISK_KEYWORDS
+)
+_RG_CONTEXT_KEYWORDS = {
+    "documento", "document", "identidade", "cpf", "nome",
+    "data de nascimento", "cadastro",
+}
 
 _DB_MAP = {
     "pg": "PostgreSQL", "postgres": "PostgreSQL", "postgresql": "PostgreSQL",
@@ -72,6 +91,9 @@ class ScanResult:
     baseline_level: str = "Minimal"
     task_elevation: str = "Standard"
     confidence: str = "low"
+    profile_status: str = "draft"
+    requires_agent_review: bool = True
+    requires_user_approval: bool = True
     assumptions: list[str] = field(default_factory=list)
     gray_areas: list[str] = field(default_factory=list)
     source: str = "deterministic"
@@ -248,36 +270,103 @@ def _detect_database_signals(base: Path) -> tuple[list[str], set[str]]:
     return extra_databases, extra_areas
 
 
-def _collect_keyword_hits(base: Path) -> dict[str, list[str]]:
-    hits: dict[str, list[str]] = {kw: [] for kw in _RAW_KEYWORDS}
+def _collect_keyword_hits(base: Path) -> dict[str, dict[str, list[str]]]:
+    raw_hits: dict[str, list[str]] = {}
+    user_interaction_hits: dict[str, list[str]] = {}
+    strong_sensitive_hits: dict[str, list[str]] = {}
+    weak_sensitive_hits: dict[str, list[str]] = {}
 
     for path in base.rglob("*"):
         if should_ignore_path(path.relative_to(base), excluded_suffixes=set()):
             continue
 
-        name = path.name.lower()
-        for kw in _RAW_KEYWORDS:
-            if kw in name:
-                hits[kw].append(str(path.relative_to(base)))
+        rel = str(path.relative_to(base))
+        name = path.name
+        _collect_hits_for_text(
+            text=name,
+            rel=rel,
+            raw_hits=raw_hits,
+            user_interaction_hits=user_interaction_hits,
+            strong_sensitive_hits=strong_sensitive_hits,
+            weak_sensitive_hits=weak_sensitive_hits,
+        )
 
         if path.is_file() and path.suffix in _SCAN_EXTENSIONS:
             try:
                 with open(path, "r", errors="ignore") as f:
-                    content = f.read(8192).lower()
-                for kw in _RAW_KEYWORDS:
-                    if kw in content:
-                        rel = str(path.relative_to(base))
-                        if rel not in hits[kw]:
-                            hits[kw].append(rel)
+                    content = f.read(8192)
+                _collect_hits_for_text(
+                    text=content,
+                    rel=rel,
+                    raw_hits=raw_hits,
+                    user_interaction_hits=user_interaction_hits,
+                    strong_sensitive_hits=strong_sensitive_hits,
+                    weak_sensitive_hits=weak_sensitive_hits,
+                )
             except (OSError, PermissionError):
                 pass
 
-    return {kw: paths for kw, paths in hits.items() if paths}
+    return {
+        "raw_keyword_hits": raw_hits,
+        "user_interaction_hits": user_interaction_hits,
+        "strong_sensitive_hits": strong_sensitive_hits,
+        "weak_sensitive_hits": weak_sensitive_hits,
+    }
+
+
+def _collect_hits_for_text(
+    text: str,
+    rel: str,
+    raw_hits: dict[str, list[str]],
+    user_interaction_hits: dict[str, list[str]],
+    strong_sensitive_hits: dict[str, list[str]],
+    weak_sensitive_hits: dict[str, list[str]],
+) -> None:
+    for keyword in _RAW_KEYWORDS:
+        if _keyword_present(text, keyword):
+            _add_hit(raw_hits, keyword, rel)
+
+    for keyword in _USER_INTERACTION_KEYWORDS:
+        if _keyword_present(text, keyword):
+            _add_hit(user_interaction_hits, keyword, rel)
+
+    for keyword in _AUTH_KEYWORDS | _SECURITY_KEYWORDS | _KEY_KEYWORDS | _PERSONAL_DATA_KEYWORDS | _USER_CONTEXT_KEYWORDS:
+        if _keyword_present(text, keyword):
+            _add_hit(strong_sensitive_hits, keyword, rel)
+
+    if _rg_sensitive(text):
+        _add_hit(strong_sensitive_hits, "rg", rel)
+    elif _keyword_present(text, "rg"):
+        _add_hit(weak_sensitive_hits, "rg", rel)
+
+    for keyword in {"user", "users"}:
+        if _keyword_present(text, keyword):
+            _add_hit(weak_sensitive_hits, keyword, rel)
+
+
+def _keyword_present(text: str, keyword: str) -> bool:
+    escaped = re.escape(keyword).replace(r"\ ", r"\s+")
+    return re.search(rf"(?<![A-Za-z0-9]){escaped}(?![A-Za-z0-9])", text, flags=re.IGNORECASE) is not None
+
+
+def _rg_sensitive(text: str) -> bool:
+    if not _keyword_present(text, "rg"):
+        return False
+    lowered = text.lower()
+    if re.search(r"(?<![A-Za-z0-9])rg(?![A-Za-z0-9])", text, flags=re.IGNORECASE):
+        return True
+    return any(_keyword_present(lowered, keyword) for keyword in _RG_CONTEXT_KEYWORDS)
+
+
+def _add_hit(hits: dict[str, list[str]], keyword: str, rel: str) -> None:
+    paths = hits.setdefault(keyword, [])
+    if rel not in paths:
+        paths.append(rel)
 
 
 def _detect_sensitive_areas(base: Path) -> list[str]:
     keyword_hits = _collect_keyword_hits(base)
-    found = _sensitive_areas_from_hits(keyword_hits)
+    found = _sensitive_areas_from_hits(keyword_hits["strong_sensitive_hits"])
     return sorted(found)
 
 
@@ -286,10 +375,12 @@ def _sensitive_areas_from_hits(keyword_hits: dict[str, list[str]], extra_areas: 
     hit_keys = set(keyword_hits)
     if hit_keys & _AUTH_KEYWORDS:
         found.update(sorted(hit_keys & _AUTH_KEYWORDS))
-    if hit_keys & _SECURITY_KEYWORDS:
-        found.update(sorted(hit_keys & _SECURITY_KEYWORDS))
+    if hit_keys & (_SECURITY_KEYWORDS | _KEY_KEYWORDS):
+        found.update(sorted(hit_keys & (_SECURITY_KEYWORDS | _KEY_KEYWORDS)))
     if hit_keys & _PERSONAL_DATA_KEYWORDS:
         found.update(sorted(hit_keys & _PERSONAL_DATA_KEYWORDS))
+    if hit_keys & (_USER_CONTEXT_KEYWORDS | {"rg"}):
+        found.update(sorted(hit_keys & (_USER_CONTEXT_KEYWORDS | {"rg"})))
     if hit_keys & _RISK_KEYWORDS:
         found.update(sorted(hit_keys & _RISK_KEYWORDS))
     return found
@@ -305,10 +396,12 @@ def _compute_signals(
 ) -> dict:
     sa = set(sensitive_areas)
     keyword_hits = keyword_hits or {}
-    hit_keys = set(keyword_hits)
+    raw_hits = keyword_hits.get("raw_keyword_hits", {})
+    user_interaction_hits = keyword_hits.get("user_interaction_hits", {})
+    hit_keys = set(raw_hits)
 
     touches_auth = bool(sa & _AUTH_KEYWORDS)
-    personal_data = bool(sa & (_PERSONAL_DATA_KEYWORDS | _SECURITY_KEYWORDS))
+    personal_data = bool(sa & (_PERSONAL_DATA_KEYWORDS | _SECURITY_KEYWORDS | _KEY_KEYWORDS | {"rg"}))
     external = bool(sa & {"payment", "billing", "pagamento", "cobrança"}) or bool(databases)
 
     prod_impact = (
@@ -324,7 +417,7 @@ def _compute_signals(
         "personal_data_possible": personal_data,
         "external_integrations": external,
         "production_impact": prod_impact,
-        "user_interaction": "input" in hit_keys or _project_uses_input(base),
+        "user_interaction": bool(user_interaction_hits) or "input" in hit_keys or _project_uses_input(base),
         "has_ci": ci is not None,
         "has_tests": _has_tests(base),
         "has_docker": any("docker" in s.lower() for s in stack),
@@ -363,7 +456,7 @@ def _collect_project_signals(
     stack: list[str],
     ci: str | None,
     databases: list[str],
-    keyword_hits: dict[str, list[str]],
+    keyword_hits: dict[str, dict[str, list[str]]],
     signals: dict,
     confidence: str,
 ) -> dict:
@@ -389,10 +482,21 @@ def _collect_project_signals(
         "stack_candidates": stack,
         "ci_candidate": ci,
         "database_candidates": databases,
-        "keyword_hits": keyword_hits,
-        "raw_sensitive_hits": [
+        "raw_keyword_hits": [
             {"keyword": keyword, "paths": paths}
-            for keyword, paths in sorted(keyword_hits.items())
+            for keyword, paths in sorted(keyword_hits["raw_keyword_hits"].items())
+        ],
+        "user_interaction_hits": [
+            {"keyword": keyword, "paths": paths}
+            for keyword, paths in sorted(keyword_hits["user_interaction_hits"].items())
+        ],
+        "strong_sensitive_hits": [
+            {"keyword": keyword, "paths": paths}
+            for keyword, paths in sorted(keyword_hits["strong_sensitive_hits"].items())
+        ],
+        "weak_sensitive_hits": [
+            {"keyword": keyword, "paths": paths}
+            for keyword, paths in sorted(keyword_hits["weak_sensitive_hits"].items())
         ],
         "signals": signals,
         "confidence": confidence,
@@ -438,7 +542,7 @@ def _architecture_summary(project_type: str, stack: list[str], signals: dict) ->
 def _confidence_and_gray_areas(
     project_type: str,
     stack: list[str],
-    keyword_hits: dict[str, list[str]],
+    keyword_hits: dict[str, dict[str, list[str]]],
     signals: dict,
 ) -> tuple[str, list[str], list[str]]:
     assumptions: list[str] = []
@@ -456,7 +560,8 @@ def _confidence_and_gray_areas(
         if signals.get("user_interaction"):
             assumptions.append("input() foi tratado como interação local de CLI, não como dado pessoal.")
 
-    if keyword_hits.get("user") or keyword_hits.get("users"):
+    weak_hits = keyword_hits.get("weak_sensitive_hits", {})
+    if project_type not in {"python_cli", "generic_python"} and (weak_hits.get("user") or weak_hits.get("users")):
         gray_areas.append("Verificar se ocorrências de user/users são apenas interação local ou representam identidade persistida.")
 
     if signals.get("has_database"):
@@ -495,6 +600,9 @@ def _write_scan_files(base: Path, result: ScanResult) -> list[str]:
             "task_elevation": result.task_elevation,
         },
         "confidence": result.confidence,
+        "profile_status": result.profile_status,
+        "requires_agent_review": result.requires_agent_review,
+        "requires_user_approval": result.requires_user_approval,
         "assumptions": result.assumptions,
         "gray_areas": result.gray_areas,
         "source": result.source,
@@ -549,7 +657,17 @@ def _write_scan_files(base: Path, result: ScanResult) -> list[str]:
         f"- Type: {result.project_type}",
         f"- Confidence: {result.confidence}",
         f"- Source: {result.source}",
+        f"- Profile Status: {result.profile_status}",
+        f"- Requires Agent Review: {str(result.requires_agent_review).lower()}",
+        f"- Requires User Approval: {str(result.requires_user_approval).lower()}",
     ]
+    if result.signals.get("user_interaction"):
+        report_lines.extend([
+            "",
+            "## Notes",
+            "",
+            "CLI input detected as local user interaction, not personal data by itself.",
+        ])
     report_path = prcp_dir / "scan-report.md"
     report_path.write_text("\n".join(report_lines), encoding="utf-8")
 
@@ -609,6 +727,8 @@ def _render_project_profile_brief(result: ScanResult) -> str:
         "- assumptions",
         "- gray_areas",
         "- source: agent_assisted",
+        "- profile_status: reviewed",
+        "- requires_user_approval: true",
         "",
     ])
 
@@ -658,7 +778,7 @@ def run_scan(project_name: str, base: Path) -> ScanResult:
         if label not in databases:
             databases.append(label)
     keyword_hits = _collect_keyword_hits(base)
-    sensitive_areas = sorted(_sensitive_areas_from_hits(keyword_hits, extra_db_areas))
+    sensitive_areas = sorted(_sensitive_areas_from_hits(keyword_hits["strong_sensitive_hits"], extra_db_areas))
     signals = _compute_signals(sensitive_areas, stack, ci, databases, base, keyword_hits)
     baseline, elevation = _calculate_prcp(signals, stack)
     project_type = _infer_project_type(stack, base, databases)
@@ -687,6 +807,9 @@ def run_scan(project_name: str, base: Path) -> ScanResult:
         baseline_level=baseline,
         task_elevation=elevation,
         confidence=confidence,
+        profile_status="draft",
+        requires_agent_review=confidence != "high",
+        requires_user_approval=True,
         assumptions=assumptions,
         gray_areas=gray_areas,
         source="deterministic",

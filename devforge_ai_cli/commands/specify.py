@@ -126,6 +126,7 @@ def run_specify(
             dry_run=True,
             command_args=command_args,
         )
+        _attach_profile_warning(result, project_profile)
         _emit(result, plain=plain, output_json=output_json)
         return 0
 
@@ -179,6 +180,7 @@ def run_specify(
             exit_code=exit_code,
             reason=stderr,
         )
+        _attach_profile_warning(result, project_profile)
         _emit(result, plain=plain, output_json=output_json)
         return exit_code
 
@@ -202,6 +204,7 @@ def run_specify(
         stdout=stdout,
         stderr=stderr,
     )
+    _attach_profile_warning(result, project_profile)
     _emit(result, plain=plain, output_json=output_json)
     return exit_code
 
@@ -233,6 +236,7 @@ def _run_existing_spec(
         f"{resolved_spec_id} {resolved_title} {spec_data['content']}"
     )
     clarified_decisions = _extract_clarified_decisions(brief_path)
+    project_profile = _load_project_profile(base)
 
     status = spec_data.get("status", "Draft")
     if interactive and not dry_run:
@@ -263,6 +267,7 @@ def _run_existing_spec(
             dry_run=True,
             command_args=[],
         )
+        _attach_profile_warning(result, project_profile)
         _emit(result, plain=plain, output_json=output_json)
         return 0
 
@@ -299,6 +304,7 @@ def _run_existing_spec(
         dry_run=False,
         command_args=[],
     )
+    _attach_profile_warning(result, project_profile)
     _emit(result, plain=plain, output_json=output_json)
     return 0
 
@@ -386,6 +392,22 @@ def _load_project_profile(base: Path) -> dict:
         return json.loads(profile_path.read_text(encoding="utf-8"))
     except json.JSONDecodeError:
         return {}
+
+
+def _profile_warning(profile: dict) -> str | None:
+    if not profile or profile.get("profile_status") == "approved":
+        return None
+    parts = ["Project Profile is preliminary and not approved."]
+    if profile.get("requires_agent_review"):
+        parts.append("Recommended: devforge scan --agent codex.")
+    parts.append("Approve it with: devforge profile approve.")
+    return " ".join(parts)
+
+
+def _attach_profile_warning(result: dict, profile: dict) -> None:
+    warning = _profile_warning(profile)
+    if warning:
+        result["profile_warning"] = warning
 
 
 def _gray_areas_for(idea: str) -> list[str]:
@@ -960,6 +982,9 @@ def _emit(result: dict, plain: bool, output_json: bool) -> None:
             print(f"exit_code: {result['exit_code']}")
     if result.get("reason"):
         print(f"reason: {result['reason']}")
+    if result.get("profile_warning"):
+        print()
+        print(f"[DevForge] Warning: {result['profile_warning']}")
 
     if result["status"] == "Draft" and result.get("gray_areas_status") == "unresolved":
         print()

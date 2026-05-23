@@ -7,6 +7,7 @@ from devforge_ai_cli.commands import init as init_cmd
 from devforge_ai_cli.commands import plan as plan_cmd
 from devforge_ai_cli.commands import policy_check as policy_cmd
 from devforge_ai_cli.commands import pr_ready as pr_ready_cmd
+from devforge_ai_cli.commands import profile as profile_cmd
 from devforge_ai_cli.commands import review as review_cmd
 from devforge_ai_cli.commands import scan as scan_cmd
 from devforge_ai_cli.commands import specify as specify_cmd
@@ -25,6 +26,13 @@ policy_app = typer.Typer(
     no_args_is_help=True,
 )
 app.add_typer(policy_app, name="policy")
+
+profile_app = typer.Typer(
+    name="profile",
+    help="Project Profile review commands.",
+    no_args_is_help=True,
+)
+app.add_typer(profile_app, name="profile")
 
 
 def _version_callback(value: bool) -> None:
@@ -147,6 +155,17 @@ def policy_check(
 ) -> None:
     """Evaluate current diff against local policies."""
     exit_code = policy_cmd.run_policy_check(diff=diff, plain=plain, output_json=output_json)
+    raise typer.Exit(code=exit_code)
+
+
+@profile_app.command("approve")
+def profile_approve(
+    yes: bool = typer.Option(False, "--yes", help="Approve without interactive prompt."),
+    plain: bool = typer.Option(False, "--plain", help="Plain text output."),
+    output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
+) -> None:
+    """Approve the current Project Profile after review."""
+    exit_code = profile_cmd.run_profile_approve(yes=yes, plain=plain, output_json=output_json)
     raise typer.Exit(code=exit_code)
 
 

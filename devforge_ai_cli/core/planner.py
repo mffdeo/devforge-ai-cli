@@ -184,6 +184,7 @@ class PlanResult:
     allowed_uses: list[str]
     blocked_uses: list[str]
     required_evidence: list[str]
+    project_profile: dict = field(default_factory=dict)
     generated_files: list[str] = field(default_factory=list)
     generated_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     implementation_brief_path: str = ""
@@ -314,6 +315,7 @@ def _write_plan_files(base: Path, result: PlanResult) -> list[str]:
             allowed_uses=result.allowed_uses,
             blocked_uses=result.blocked_uses,
             required_evidence=result.required_evidence,
+            project_profile=result.project_profile,
         ),
         encoding="utf-8",
     )
@@ -496,6 +498,7 @@ def generate_plan(spec_path: Path, base: Path) -> PlanResult:
         allowed_uses=allowed_uses,
         blocked_uses=BLOCKED_USES,
         required_evidence=required_evidence,
+        project_profile=profile,
     )
     # Attach the parsed SPEC and scan profile so _write_implementation_brief
     # can pull objective/acceptance/risks without re-parsing.

@@ -58,7 +58,7 @@ def _summary_panel(result: ScanResult) -> Panel:
     rows = [
         ("1", "Type",      result.project_type),
         ("2", "Stack",      stack_summary),
-        ("3", result.confidence, "Profile confidence"),
+        ("3", result.confidence, f"Profile {result.profile_status}"),
         ("4", "Próximo",    f"[{t.CYAN}]{result.suggested_next_command}[/{t.CYAN}]"),
     ]
     for num, label, desc in rows:
@@ -101,8 +101,8 @@ def render_scan(result: ScanResult) -> None:
     next_grid.add_column(style=f"bold {t.CYAN}", justify="right", min_width=2)
     next_grid.add_column(style=t.TEXT)
     steps = [
-        ("1.", "Revisar Project Profile"),
-        ("2.", f"Confirmar gray areas e confidence [{t.AMBER}]{result.confidence}[/{t.AMBER}]"),
+        ("1.", "Revisar Project Profile preliminar"),
+        ("2.", f"Aprovar profile quando pronto: [{t.CYAN}]devforge profile approve[/{t.CYAN}]"),
         ("3.", f"Rodar: [{t.CYAN}]{result.suggested_next_command}[/{t.CYAN}]"),
     ]
     for num, step in steps:
@@ -154,6 +154,7 @@ def render_scan(result: ScanResult) -> None:
         Text.from_markup(
             f"[{t.MUTED}]Profile confidence:[/{t.MUTED}] "
             f"[bold {t.CYAN}]{result.confidence}[/bold {t.CYAN}]  "
+            f"[{t.MUTED}]status:[/{t.MUTED}] [bold {t.TEXT}]{result.profile_status}[/bold {t.TEXT}]  "
             f"[{t.MUTED}]source:[/{t.MUTED}] [bold {t.TEXT}]{result.source}[/bold {t.TEXT}]"
         ),
         Text(""),

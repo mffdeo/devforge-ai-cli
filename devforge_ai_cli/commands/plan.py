@@ -9,6 +9,16 @@ from devforge_ai_cli.core.project import require_init
 _DRAFT_WARNING = "SPEC status is Draft. Consider resolving gray areas and approving it before planning."
 
 
+def _profile_warning(profile: dict) -> str | None:
+    if profile.get("profile_status") == "approved":
+        return None
+    parts = ["Project Profile is preliminary and not approved."]
+    if profile.get("requires_agent_review"):
+        parts.append("Recommended: devforge scan --agent codex.")
+    parts.append("Approve it with: devforge profile approve.")
+    return " ".join(parts)
+
+
 def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None) -> None:
     base = cwd or Path.cwd()
     require_init(base)
@@ -35,7 +45,14 @@ def run_plan(spec: str, plain: bool, output_json: bool, cwd: Path | None = None)
         raise SystemExit(1)
 
     spec_status = parse_spec(spec_path).get("status", "Unknown")
-    warning = _DRAFT_WARNING if str(spec_status).lower() == "draft" else None
+    profile = json.loads(profile_path.read_text(encoding="utf-8"))
+    warnings = []
+    if str(spec_status).lower() == "draft":
+        warnings.append(_DRAFT_WARNING)
+    profile_warning = _profile_warning(profile)
+    if profile_warning:
+        warnings.append(profile_warning)
+    warning = " ".join(warnings) if warnings else None
 
     result = generate_plan(spec_path=spec_path, base=base)
 

@@ -42,6 +42,9 @@ def run_scan_cmd(
         "baseline_level": result.baseline_level,
         "task_elevation": result.task_elevation,
         "confidence": result.confidence,
+        "profile_status": result.profile_status,
+        "requires_agent_review": result.requires_agent_review,
+        "requires_user_approval": result.requires_user_approval,
         "source": result.source,
         "signals": result.signals,
         "generated_files": result.generated_files,
@@ -68,6 +71,9 @@ def run_scan_cmd(
             "baseline_level": result.baseline_level,
             "task_elevation": result.task_elevation,
             "confidence": result.confidence,
+            "profile_status": result.profile_status,
+            "requires_agent_review": result.requires_agent_review,
+            "requires_user_approval": result.requires_user_approval,
             "assumptions": result.assumptions,
             "gray_areas": result.gray_areas,
             "source": result.source,
@@ -77,16 +83,23 @@ def run_scan_cmd(
             "recommended_next_step": result.suggested_next_command,
             "agent": agent_result,
             "next_steps": [
-                "Revisar Project Profile",
-                "Confirmar gray areas",
+                "Review preliminary Project Profile",
+                "Approve profile with devforge profile approve when ready",
                 result.suggested_next_command,
             ],
         }, ensure_ascii=False))
     elif plain:
+        print("[DevForge] Signals collected")
+        print("[DevForge] Preliminary project profile")
         print(f"[DevForge] Project type: {result.project_type}")
         print(f"[DevForge] Stack: {', '.join(result.detected_stack) or 'nenhuma'}")
-        print(f"[DevForge] Confidence: {result.confidence}")
+        print(f"[DevForge] Profile confidence: {result.confidence}")
+        print(f"[DevForge] Profile status: {result.profile_status}")
         print(f"[DevForge] Source: {result.source}")
+        if result.requires_agent_review:
+            print("[DevForge] Project profile is preliminary.")
+            print("[DevForge] Recommended: devforge scan --agent codex")
+            print("[DevForge] Do not treat this profile as final until reviewed or approved.")
         if result.ci_detected:
             print(f"[DevForge] CI detectado: {result.ci_detected}")
         if result.databases_detected:
@@ -106,7 +119,7 @@ def run_scan_cmd(
                 print("[DevForge] Dry run: agente não executado.")
             elif agent_result["executed"]:
                 print(f"[DevForge] Agent exit_code: {agent_result['exit_code']}")
-        print(f"[DevForge] Recommended next step: {result.suggested_next_command}")
+        print(f"[DevForge] Recommended review: {result.suggested_next_command}")
     else:
         from devforge_ai_cli.ui.renderers.scan_screen import render_scan
         render_scan(result)
@@ -260,4 +273,7 @@ def _mark_profile_agent_assisted(profile_path: Path) -> None:
     except json.JSONDecodeError:
         return
     profile["source"] = "agent_assisted"
+    profile["profile_status"] = "reviewed"
+    profile["requires_agent_review"] = False
+    profile["requires_user_approval"] = True
     profile_path.write_text(json.dumps(profile, indent=2, ensure_ascii=False), encoding="utf-8")

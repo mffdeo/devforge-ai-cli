@@ -96,6 +96,30 @@ def test_specify_uses_project_profile_json(tmp_path: Path):
     assert "project_type: python_cli" in content
 
 
+def test_specify_warns_when_project_profile_not_approved(tmp_path: Path, capsys):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
+    run_scan("calculator", tmp_path)
+    capsys.readouterr()
+    run_specify(
+        idea=PRIORITY_IDEA,
+        title=None,
+        spec_id=None,
+        agent="none",
+        command=None,
+        interactive=False,
+        approve=False,
+        yes=False,
+        dry_run=False,
+        plain=True,
+        output_json=False,
+        cwd=tmp_path,
+    )
+    out = capsys.readouterr().out
+    assert "Project Profile is preliminary and not approved." in out
+    assert "devforge profile approve" in out
+
+
 def test_specify_json_returns_spec_path_and_next_step(tmp_path: Path, capsys):
     _init(tmp_path)
     capsys.readouterr()
