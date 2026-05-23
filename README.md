@@ -83,7 +83,7 @@ DevForge CLI currently includes:
 - `devforge evidence` to collect an Evidence Pack;
 - `devforge pr-ready` to prepare commit and PR guidance without committing or pushing.
 
-These commands are functional, but their outputs should be treated as drafts that require human review.
+These commands are functional, but their outputs should be treated as reviewable drafts, not final decisions.
 
 ---
 
@@ -110,7 +110,7 @@ Real tests showed false positives:
 
 - a simple Python CLI calculator was initially treated as higher risk than it was;
 - local `input()` was easy to confuse with personal data;
-- the word "session" / "sessao" could be mistaken for authentication;
+- the word "session" / "sessão" could be mistaken for authentication;
 - phrases like "no database" or "sem banco" could still trigger database risk if handled naively;
 - generic project words could push the planner toward specific templates such as auth.
 
@@ -140,6 +140,7 @@ See [LESSONS_LEARNED.md](LESSONS_LEARNED.md) for the longer write-up.
 - The project does not prove legal, security, privacy, or regulatory compliance.
 - There is no guarantee that the tool understands your architecture.
 - External agent execution is opt-in and depends on tools installed locally by the user.
+- Some experimental commands may change behavior or be simplified in future versions.
 
 Do not use this as a production approval system without your own review, tests, and controls.
 
@@ -202,15 +203,21 @@ pytest -v
 ruff check .
 ```
 
-Try the workflow:
+Try the full experimental flow:
 
 ```bash
 devforge init
 devforge scan
+devforge profile approve
 devforge specify --idea "Describe your feature idea"
+devforge specify --spec specs/<SPEC-ID>.md --approve
 devforge plan --spec specs/<SPEC-ID>.md
+devforge implement --spec specs/<SPEC-ID>.md --agent custom --command "echo" --dry-run
+The `echo` command is used here as a safe dry-run example. In a real experiment, replace it with your local coding agent command.
 devforge policy check --diff
+devforge review --issue <SPEC-ID>
 devforge evidence --issue <SPEC-ID>
+devforge pr-ready --issue <SPEC-ID>
 ```
 
 Review every generated artifact before using it.
