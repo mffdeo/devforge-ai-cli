@@ -493,6 +493,45 @@ def test_plan_session_history_in_memory_session_does_not_classify_auth(tmp_path)
     assert touches_database is False
 
 
+def test_plan_negated_database_scope_does_not_touch_database(tmp_path):
+    profile = _python_cli_profile()
+    content = SPEC_CALC_HISTORY_CONTENT + "\n## Fora de escopo\n\n- Sem banco/schema/migração.\n"
+    spec_data = {
+        "spec_id": "SPEC-HISTORICO-CALCULOS-SESSAO-001",
+        "title": "Histórico de cálculos da sessão",
+        "content": content,
+        "sections": {"objetivo": "Adicionar histórico de cálculos da sessão na calculadora CLI."},
+    }
+    domain, touches_database = classify_spec_domain(spec_data, profile)
+    assert domain == "cli_session_history"
+    assert touches_database is False
+
+
+def test_plan_python_cli_history_effective_prcp_is_not_hardened(tmp_path):
+    profile = _python_cli_profile()
+    spec_data = {
+        "spec_id": "SPEC-HISTORICO-CALCULOS-SESSAO-001",
+        "title": "Histórico de cálculos da sessão",
+        "content": SPEC_CALC_HISTORY_CONTENT,
+        "sections": {"objetivo": "Adicionar histórico de cálculos da sessão na calculadora CLI."},
+    }
+    assert compute_effective_prcp(profile, spec_data) in {"Minimal", "Standard"}
+    assert compute_effective_prcp(profile, spec_data) != "Hardened"
+
+
+def test_plan_python_cli_history_ignores_stale_hardened_profile_when_profile_is_low_risk(tmp_path):
+    profile = _python_cli_profile()
+    profile["prcp"]["task_elevation"] = "Hardened"
+    profile["prcp"]["baseline_level"] = "Minimal"
+    spec_data = {
+        "spec_id": "SPEC-HISTORICO-CALCULOS-SESSAO-001",
+        "title": "Histórico de cálculos da sessão",
+        "content": SPEC_CALC_HISTORY_CONTENT,
+        "sections": {"objetivo": "Adicionar histórico de cálculos da sessão na calculadora CLI."},
+    }
+    assert compute_effective_prcp(profile, spec_data) == "Minimal"
+
+
 def test_plan_python_cli_history_generates_no_auth_db_cloud_tasks(tmp_path):
     run_init(plain=True, output_json=False, cwd=tmp_path)
     (tmp_path / "calculator.py").write_text("print('calculator')\n")
@@ -578,7 +617,9 @@ def test_plan_python_cli_history_context_blocks_out_of_scope_uses(tmp_path):
     context = (tmp_path / ".devforge" / "context" / "context-pack.md").read_text()
     assert "calculator.py" in context
     assert "fluxo CLI local" in context
-    assert "testes manuais/py_compile" in context
+    assert "histórico em memória" in context
+    assert "testes manuais" in context
+    assert "py_compile" in context
     for blocked in (
         "login/auth",
         "banco",
@@ -586,6 +627,7 @@ def test_plan_python_cli_history_context_blocks_out_of_scope_uses(tmp_path):
         "persistência em arquivo quando fora de escopo",
         "dados pessoais",
         "segredos/tokens",
+        "integração externa",
     ):
         assert blocked in context
 
@@ -613,9 +655,24 @@ def test_implementation_brief_keeps_python_cli_history_scope(tmp_path):
     assert "não adicionar login" in brief
     assert "não adicionar autenticação" in brief
     assert "não adicionar cloud" in brief
+    assert "não adicionar integração externa" in brief
     assert "não adicionar banco se a SPEC não pedir" in brief
     assert "não persistir dados em arquivo se estiver fora de escopo" in brief
     assert "não transformar sessão local em sessão autenticada" in brief
+
+
+def test_plan_requires_approval_for_secret_feature(tmp_path):
+    profile = _python_cli_profile()
+    spec_data = {
+        "spec_id": "SPEC-SECRET-001",
+        "title": "Configurar token de API",
+        "content": "# SPEC-SECRET-001\n\n## Objetivo\n\nConfigurar token de API externa.",
+        "sections": {"objetivo": "Configurar token de API externa."},
+    }
+    decision, required = determine_policy(profile, spec_data)
+    assert decision == "REQUIRE_APPROVAL"
+    assert "human_review" in required
+    assert "rollback_plan" in required
 
 
 def test_plan_low_confidence_ambiguous_cli_spec_uses_generic_plan(tmp_path, capsys):

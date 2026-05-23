@@ -35,6 +35,7 @@ CLI_BLOCKED_USES = [
     "persistência em arquivo quando fora de escopo",
     "dados pessoais",
     "segredos/tokens",
+    "integração externa",
 ]
 
 _AUTH_KWS = {
@@ -59,12 +60,45 @@ _LOCAL_SESSION_TERMS = {
 }
 _PAYMENT_KWS = {"payment", "billing", "pagamento", "cobrança"}
 _DB_KWS = {"migration", "database", "schema", "migrate"}
-_DB_EXTRA_TERMS = {"banco", "sqlite", "tabela", "create table", "alter table", "drop table"}
+_DB_EXTRA_TERMS = {"banco", "db", "sqlite", "tabela", "create table", "alter table", "drop table"}
+_DB_NEGATION_TERMS = (
+    "arquivo",
+    "persistência",
+    "persistencia",
+    "banco",
+    "db",
+    "database",
+    "sqlite",
+    "schema",
+    "tabela",
+    "migração",
+    "migracao",
+    "migration",
+    "migrate",
+)
+_DB_NEGATION_CHAIN = "|".join(re.escape(term) for term in _DB_NEGATION_TERMS)
 _DB_NEGATION_PATTERNS = (
-    r"\bsem\s+(?:arquivo|persistência|persistencia|banco|database|sqlite|schema|tabela|migração|migracao)\b",
-    r"\bn[aã]o\s+(?:adicionar|usar|criar|alterar|persistir|tocar|exigir)\s+(?:arquivo|persistência|persistencia|banco|database|sqlite|schema|tabela)\b",
-    r"\bno\s+(?:file|database|sqlite|schema|persistence)\b",
-    r"\bwithout\s+(?:file|database|sqlite|schema|persistence)\b",
+    rf"\bsem\s+(?:{_DB_NEGATION_CHAIN})(?:(?:\s*/\s*|\s*,\s*|\s*;\s*|\s+ou\s+|\s+e\s+)(?:{_DB_NEGATION_CHAIN}))*\b",
+    rf"\bn[aã]o\s+(?:adicionar|usar|criar|alterar|persistir|tocar|exigir)\s+(?:{_DB_NEGATION_CHAIN})(?:(?:\s*/\s*|\s*,\s*|\s*;\s*|\s+ou\s+|\s+e\s+)(?:{_DB_NEGATION_CHAIN}))*\b",
+    r"\bno\s+(?:file|db|database|sqlite|schema|persistence|migration)\b",
+    r"\bwithout\s+(?:file|db|database|sqlite|schema|persistence|migration)\b",
+)
+_EXTERNAL_KWS = {
+    "cloud", "nuvem", "api externa", "external integration", "integração externa",
+    "integracao externa", "webhook", "aws", "gcp", "azure", "s3", "stripe",
+}
+_EXTERNAL_NEGATION_PATTERNS = (
+    r"\bsem\s+(?:cloud|nuvem|api externa|integração externa|integracao externa|webhook|aws|gcp|azure|s3|stripe)\b",
+    r"\bn[aã]o\s+(?:adicionar|usar|criar|integrar|chamar|exigir)\s+(?:cloud|nuvem|api externa|integração externa|integracao externa|webhook|aws|gcp|azure|s3|stripe)\b",
+    r"\bno\s+(?:cloud|external integration|webhook|aws|gcp|azure|s3|stripe)\b",
+    r"\bwithout\s+(?:cloud|external integration|webhook|aws|gcp|azure|s3|stripe)\b",
+)
+_SECRET_KWS = {"secret", "segredo", "segredos", "token", "api_key", "private_key", "credential", "credencial"}
+_SECRET_NEGATION_PATTERNS = (
+    r"\bsem\s+(?:segredos?|tokens?|secret|credentials?|credenciais?|api[_-]?key|private[_-]?key)\b",
+    r"\bn[aã]o\s+(?:adicionar|usar|criar|exigir|tocar)\s+(?:segredos?|tokens?|secret|credentials?|credenciais?|api[_-]?key|private[_-]?key)\b",
+    r"\bno\s+(?:secrets?|tokens?|credentials?|api[_-]?key|private[_-]?key)\b",
+    r"\bwithout\s+(?:secrets?|tokens?|credentials?|api[_-]?key|private[_-]?key)\b",
 )
 _TASK_PRIORITY_TERMS = {"prioridade", "priority"}
 _TASK_CONTEXT_TERMS = {"tarefa", "tarefas", "task", "tasks", "todo", "todos"}
@@ -156,6 +190,16 @@ def _database_hits(text: str) -> bool:
     return _hits(cleaned, _DB_KWS | _DB_EXTRA_TERMS)
 
 
+def _external_hits(text: str) -> bool:
+    cleaned = _strip_patterns(text.lower(), _EXTERNAL_NEGATION_PATTERNS)
+    return _hits(cleaned, _EXTERNAL_KWS)
+
+
+def _secret_hits(text: str) -> bool:
+    cleaned = _strip_patterns(text.lower(), _SECRET_NEGATION_PATTERNS)
+    return _hits(cleaned, _SECRET_KWS)
+
+
 def _task_priority_hits(text: str) -> bool:
     lowered = text.lower()
     return _hits(lowered, _TASK_PRIORITY_TERMS) and _hits(lowered, _TASK_CONTEXT_TERMS)
@@ -181,6 +225,55 @@ def _profile_bool(profile: dict, top_level: str, signal_key: str | None = None) 
         return bool(profile.get(top_level))
     signals = profile.get("signals", {})
     return bool(signals.get(signal_key or top_level, False))
+
+
+def _low_risk_python_cli_profile(profile: dict) -> bool:
+    production_impact = str(profile.get("production_impact", "low")).lower()
+    if profile.get("project_type") != "python_cli":
+        return False
+    return (
+        not _profile_bool(profile, "has_database")
+        and not _profile_bool(profile, "has_auth", "touches_auth")
+        and not _profile_bool(profile, "personal_data_possible")
+        and not _profile_bool(profile, "external_integrations")
+        and production_impact not in {"high", "critical", "production"}
+    )
+
+
+def _profile_baseline(profile: dict) -> str:
+    prcp = profile.get("prcp", {})
+    baseline = prcp.get("task_elevation") or prcp.get("baseline_level") or "Standard"
+    if _low_risk_python_cli_profile(profile):
+        baseline_level = prcp.get("baseline_level", baseline)
+        if baseline == "Hardened" and baseline_level in {"Minimal", "Standard"}:
+            return baseline_level
+    return baseline
+
+
+def _spec_declares_high_impact(spec_data: dict) -> bool:
+    content = _spec_lower(spec_data)
+    return _hits(content, {"produção", "production", "critical", "crítico", "critico", "alto impacto"})
+
+
+def _spec_declares_strong_risk(spec_data: dict) -> bool:
+    content = _spec_lower(spec_data)
+    return (
+        _auth_hits(content)
+        or _database_hits(content)
+        or _external_hits(content)
+        or _secret_hits(content)
+        or _spec_declares_high_impact(spec_data)
+    )
+
+
+def _is_lightweight_python_cli_feature(profile: dict, spec_data: dict) -> bool:
+    classification = classify_plan(spec_data, profile)
+    return (
+        _low_risk_python_cli_profile(profile)
+        and classification.domain in {"cli_session_history", "generic_cli_feature"}
+        and not classification.touches_database
+        and not _spec_declares_strong_risk(spec_data)
+    )
 
 
 @dataclass(frozen=True)
@@ -303,8 +396,10 @@ def compute_effective_prcp(profile: dict, spec_data: dict) -> str:
     declares database/schema work, the plan applies Hardened regardless
     of the scan baseline. Auth/personal-data already elevate at scan time.
     """
-    baseline = profile.get("prcp", {}).get("task_elevation", "Standard")
+    baseline = _profile_baseline(profile)
     _, touches_database = classify_spec_domain(spec_data, profile)
+    if _is_lightweight_python_cli_feature(profile, spec_data):
+        return baseline if baseline in {"Minimal", "Standard"} else "Standard"
     if touches_database:
         return "Hardened"
     return baseline
@@ -316,7 +411,10 @@ def compute_allowed_uses(spec_data: dict, profile: dict | None = None) -> list[s
     profile = profile or {}
     _, touches_database = classify_spec_domain(spec_data, profile)
     if profile.get("project_type") == "python_cli":
-        for item in ("calculator.py", "fluxo CLI local", "testes manuais/py_compile"):
+        cli_items = ["calculator.py", "fluxo CLI local", "testes manuais", "py_compile"]
+        if classify_plan(spec_data, profile).domain == "cli_session_history":
+            cli_items.insert(2, "histórico em memória")
+        for item in cli_items:
             if item not in uses:
                 uses.append(item)
     if touches_database and "schema local" not in uses:
@@ -434,9 +532,25 @@ def determine_policy(profile: dict, spec_data: dict) -> tuple[str, list[str]]:
         _profile_bool(profile, "has_auth", "touches_auth") and profile.get("has_auth", False)
     )
     personal_data = _profile_bool(profile, "personal_data_possible")
+    external_integration = _profile_bool(profile, "external_integrations") or _external_hits(_spec_lower(spec_data))
+    secrets = _secret_hits(_spec_lower(spec_data))
+    high_impact = str(profile.get("production_impact", "low")).lower() in {"high", "critical", "production"}
+    high_impact = high_impact or _spec_declares_high_impact(spec_data)
     spec_has_risk = domain in {"auth", "payment"}
 
-    if hardened or touches_auth or personal_data or spec_has_risk or touches_database:
+    if _is_lightweight_python_cli_feature(profile, spec_data):
+        decision = PolicyDecision.ALLOW
+        required = ["test_report", "audit_log"]
+    elif (
+        hardened
+        or touches_auth
+        or personal_data
+        or external_integration
+        or secrets
+        or high_impact
+        or spec_has_risk
+        or touches_database
+    ):
         decision = PolicyDecision.REQUIRE_APPROVAL
         required = ["test_report", "human_review", "rollback_plan", "audit_log"]
     else:
