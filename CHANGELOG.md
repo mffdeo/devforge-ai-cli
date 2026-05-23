@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file.
 
+## Unreleased - v0.2.0-lab
+
+### Changed
+
+- Repositioned DevForge CLI as a personal experimental learning project rather than a production-ready governance product.
+- Updated README and landing page language to avoid claims of universal repository understanding or real compliance guarantees.
+- Documented the core lesson from real tests: deterministic heuristics are useful for raw signals, but not enough to understand arbitrary projects.
+- Clarified the intended future direction as a local-first AI governance harness for briefs, handoffs, policy gates, human review, evidence, and PR guidance.
+
+### Added
+
+- `LESSONS_LEARNED.md` with notes from the Todo App and calculator CLI experiments, including what worked, what failed, and what should be designed differently.
+
 ## 0.1.1 - Scan heuristics patch
 
 ### Fixed
