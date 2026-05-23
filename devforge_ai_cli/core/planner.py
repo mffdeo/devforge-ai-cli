@@ -83,6 +83,13 @@ def _hits(text: str, terms: set[str]) -> bool:
     return any(term in text for term in terms)
 
 
+def _profile_bool(profile: dict, top_level: str, signal_key: str | None = None) -> bool:
+    if top_level in profile:
+        return bool(profile.get(top_level))
+    signals = profile.get("signals", {})
+    return bool(signals.get(signal_key or top_level, False))
+
+
 def classify_spec_domain(spec_data: dict, profile: dict | None = None) -> tuple[str, bool]:
     """Infer SPEC domain and whether it touches a database.
 
@@ -110,7 +117,6 @@ def classify_spec_domain(spec_data: dict, profile: dict | None = None) -> tuple[
     profile = profile or {}
     content = _spec_lower(spec_data)
     sensitive = set(profile.get("sensitive_areas", []))
-    signals = profile.get("signals", {})
 
     spec_id = (spec_data.get("spec_id") or "").lower()
     title = (spec_data.get("title") or "").lower()
@@ -122,7 +128,7 @@ def classify_spec_domain(spec_data: dict, profile: dict | None = None) -> tuple[
         _hits(content, _DB_KWS | _DB_EXTRA_TERMS)
         or bool(_DB_KWS & sensitive)
         or bool({"database", "schema", "sqlite"} & sensitive)
-        or bool(signals.get("has_database", False))
+        or _profile_bool(profile, "has_database")
     )
 
     if headline:
@@ -255,11 +261,10 @@ def generate_tasks(spec_id: str, spec_data: dict, profile: dict) -> list[dict]:
 def determine_policy(profile: dict, spec_data: dict) -> tuple[str, list[str]]:
     domain, touches_database = classify_spec_domain(spec_data, profile)
     effective_prcp = compute_effective_prcp(profile, spec_data)
-    signals = profile.get("signals", {})
 
     hardened = effective_prcp == "Hardened"
-    touches_auth = signals.get("touches_auth", False) or domain == "auth"
-    personal_data = signals.get("personal_data_possible", False)
+    touches_auth = _profile_bool(profile, "has_auth", "touches_auth") or domain == "auth"
+    personal_data = _profile_bool(profile, "personal_data_possible")
     spec_has_risk = domain in {"auth", "payment"}
 
     if hardened or touches_auth or personal_data or spec_has_risk or touches_database:

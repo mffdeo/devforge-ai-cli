@@ -54,11 +54,23 @@ def init(
 
 @app.command()
 def scan(
+    agent: str = typer.Option("none", "--agent", help="External agent to refine Project Profile. Supported: none, codex, custom."),
+    command: str | None = typer.Option(None, "--command", help="Shell command used when --agent custom is selected."),
+    dry_run: bool = typer.Option(False, "--dry-run", help="Show the agent command without running it."),
+    yes: bool = typer.Option(False, "--yes", help="Skip confirmation before running an external agent."),
     plain: bool = typer.Option(False, "--plain", help="Plain text output."),
     output_json: bool = typer.Option(False, "--json", help="JSON output for automation."),
 ) -> None:
     """Scan repository for stack, CI and risk signals."""
-    scan_cmd.run_scan_cmd(plain=plain, output_json=output_json)
+    exit_code = scan_cmd.run_scan_cmd(
+        plain=plain,
+        output_json=output_json,
+        agent=agent,
+        command=command,
+        dry_run=dry_run,
+        yes=yes,
+    )
+    raise typer.Exit(code=exit_code)
 
 
 @app.command()

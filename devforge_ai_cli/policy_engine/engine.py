@@ -55,9 +55,9 @@ def evaluate_policy(
 
     if task_elevation == "Hardened":
         _add(reasons, "hardened_prcp")
-    if signals.get("touches_auth"):
+    if profile.get("has_auth", signals.get("touches_auth")):
         _add(reasons, "touches_auth")
-    if signals.get("personal_data_possible"):
+    if profile.get("personal_data_possible", signals.get("personal_data_possible")):
         _add(reasons, "sensitive_data_possible")
 
     # ── existing policy ───────────────────────────────────────────────────────

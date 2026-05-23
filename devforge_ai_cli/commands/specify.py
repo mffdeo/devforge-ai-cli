@@ -8,7 +8,7 @@ import unicodedata
 from pathlib import Path
 
 from devforge_ai_cli.audit.ndjson import append_event
-from devforge_ai_cli.core.paths import get_audit_file
+from devforge_ai_cli.core.paths import get_audit_file, get_devforge_dir
 from devforge_ai_cli.core.planner import parse_spec
 from devforge_ai_cli.core.project import require_init
 
@@ -62,6 +62,7 @@ def run_specify(
     brief_rel = f".devforge/context/specification-brief-{resolved_spec_id}.md"
     assumptions = _assumptions_for(collected_idea)
     gray_areas = _gray_areas_for(collected_idea)
+    project_profile = _load_project_profile(base)
     clarified_decisions: list[dict[str, str]] = []
 
     if interactive and not dry_run:
@@ -88,6 +89,7 @@ def run_specify(
         gray_areas=gray_areas,
         spec_rel=spec_rel,
         clarified_decisions=clarified_decisions,
+        project_profile=project_profile,
     )
     if clarified_decisions:
         spec_content = _with_clarified_decisions(spec_content, clarified_decisions)
@@ -376,6 +378,16 @@ def _assumptions_for(idea: str) -> list[str]:
     ]
 
 
+def _load_project_profile(base: Path) -> dict:
+    profile_path = get_devforge_dir(base) / "prcp" / "project-profile.json"
+    if not profile_path.exists():
+        return {}
+    try:
+        return json.loads(profile_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return {}
+
+
 def _gray_areas_for(idea: str) -> list[str]:
     if _is_priority_idea(idea):
         return [
@@ -609,7 +621,9 @@ def _render_specification_brief(
     gray_areas: list[str],
     spec_rel: str,
     clarified_decisions: list[dict[str, str]],
+    project_profile: dict | None = None,
 ) -> str:
+    project_profile = project_profile or {}
     lines = [
         f"# DevForge Specification Brief — {spec_id}",
         "",
@@ -630,6 +644,16 @@ def _render_specification_brief(
         *[f"- {item}" for item in gray_areas],
         "",
     ]
+    if project_profile:
+        lines.extend([
+            "## Project Profile Context",
+            "",
+            f"- project_type: {project_profile.get('project_type', 'unknown')}",
+            f"- detected_stack: {', '.join(project_profile.get('detected_stack', [])) or 'unknown'}",
+            f"- confidence: {project_profile.get('confidence', 'unknown')}",
+            f"- source: {project_profile.get('source', 'unknown')}",
+            "",
+        ])
     if clarified_decisions:
         lines.extend(_clarified_decision_lines(clarified_decisions))
         lines.append("")

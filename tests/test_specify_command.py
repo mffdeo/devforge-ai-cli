@@ -8,6 +8,7 @@ from devforge_ai_cli.cli import app
 from devforge_ai_cli.commands.init import run_init
 from devforge_ai_cli.commands.specify import run_specify
 from devforge_ai_cli.core.paths import get_audit_file
+from devforge_ai_cli.core.scanner import run_scan
 
 PRIORITY_IDEA = "Permitir que cada tarefa tenha prioridade Baixa, Média ou Alta"
 
@@ -68,6 +69,31 @@ def test_specify_creates_specification_brief(tmp_path: Path):
     assert "Original idea" in content
     assert PRIORITY_IDEA in content
     assert "devforge plan --spec specs/SPEC-PRIORITY-001.md" in content
+
+
+def test_specify_uses_project_profile_json(tmp_path: Path):
+    _init(tmp_path)
+    (tmp_path / "calculator.py").write_text("print(1 + 1)\n")
+    run_scan("calculator", tmp_path)
+    run_specify(
+        idea=PRIORITY_IDEA,
+        title=None,
+        spec_id=None,
+        agent="none",
+        command=None,
+        interactive=False,
+        approve=False,
+        yes=False,
+        dry_run=False,
+        plain=True,
+        output_json=False,
+        cwd=tmp_path,
+    )
+    content = (
+        tmp_path / ".devforge" / "context" / "specification-brief-SPEC-PRIORITY-001.md"
+    ).read_text()
+    assert "Project Profile Context" in content
+    assert "project_type: python_cli" in content
 
 
 def test_specify_json_returns_spec_path_and_next_step(tmp_path: Path, capsys):

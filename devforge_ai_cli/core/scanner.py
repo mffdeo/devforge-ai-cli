@@ -6,13 +6,21 @@ from pathlib import Path
 from devforge_ai_cli.core.ignore import should_ignore_path
 from devforge_ai_cli.core.paths import get_devforge_dir
 
-_SENSITIVE_KEYWORDS = [
+_AUTH_KEYWORDS = {
     "auth", "login", "logout", "permission", "permissions",
-    "role", "roles", "rbac", "user", "users",
-    "jwt", "token", "secret", "password",
-    "cpf", "email", "payment", "billing",
+    "role", "roles", "rbac", "jwt",
+}
+_SECURITY_KEYWORDS = {"token", "secret", "password", "senha"}
+_PERSONAL_DATA_KEYWORDS = {
+    "email", "cpf", "phone", "telefone", "address", "endereco", "endereço",
+    "full_name", "first_name", "last_name", "nome_completo", "birthdate", "birth_date", "data_nascimento",
+    "personal data", "dados pessoais", "documento", "rg", "cnpj",
+}
+_RISK_KEYWORDS = {
+    "payment", "billing", "pagamento", "cobrança",
     "migration", "database", "middleware",
-]
+}
+_RAW_KEYWORDS = sorted(_AUTH_KEYWORDS | _SECURITY_KEYWORDS | _PERSONAL_DATA_KEYWORDS | _RISK_KEYWORDS | {"user", "users", "input", "choice", "enter"})
 
 _DB_MAP = {
     "pg": "PostgreSQL", "postgres": "PostgreSQL", "postgresql": "PostgreSQL",
@@ -49,13 +57,25 @@ _DB_SCHEMA_TOKENS = {"create table", "alter table", "drop table"}
 @dataclass
 class ScanResult:
     project_name: str
+    project_type: str = "unknown"
     detected_stack: list[str] = field(default_factory=list)
     ci_detected: str | None = None
     databases_detected: list[str] = field(default_factory=list)
+    architecture_summary: str = "Project architecture could not be confidently inferred."
+    has_database: bool = False
+    has_auth: bool = False
+    personal_data_possible: bool = False
+    external_integrations: bool = False
+    production_impact: str = "low"
     sensitive_areas: list[str] = field(default_factory=list)
     signals: dict = field(default_factory=dict)
     baseline_level: str = "Minimal"
     task_elevation: str = "Standard"
+    confidence: str = "low"
+    assumptions: list[str] = field(default_factory=list)
+    gray_areas: list[str] = field(default_factory=list)
+    source: str = "deterministic"
+    project_signals: dict = field(default_factory=dict)
     scanned_at: str = field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     generated_files: list[str] = field(default_factory=list)
     suggested_next_spec: str | None = None
@@ -107,6 +127,9 @@ def _detect_stack(base: Path) -> tuple[list[str], str | None, list[str]]:
                 pass
             break
 
+    if "Python" not in stack and _python_files(base):
+        stack.append("Python")
+
     # Docker / compose
     if (base / "Dockerfile").exists():
         stack.append("Docker")
@@ -134,6 +157,20 @@ def _detect_stack(base: Path) -> tuple[list[str], str | None, list[str]]:
         ci = "CircleCI"
 
     return stack, ci, databases
+
+
+def _python_files(base: Path) -> list[Path]:
+    files: list[Path] = []
+    for path in base.rglob("*.py"):
+        try:
+            rel = path.relative_to(base)
+        except ValueError:
+            continue
+        if should_ignore_path(rel, excluded_suffixes=set()):
+            continue
+        if path.is_file():
+            files.append(path)
+    return files
 
 
 def _has_tests(base: Path) -> bool:
@@ -211,29 +248,51 @@ def _detect_database_signals(base: Path) -> tuple[list[str], set[str]]:
     return extra_databases, extra_areas
 
 
-def _detect_sensitive_areas(base: Path) -> list[str]:
-    found: set[str] = set()
+def _collect_keyword_hits(base: Path) -> dict[str, list[str]]:
+    hits: dict[str, list[str]] = {kw: [] for kw in _RAW_KEYWORDS}
 
     for path in base.rglob("*"):
         if should_ignore_path(path.relative_to(base), excluded_suffixes=set()):
             continue
 
         name = path.name.lower()
-        for kw in _SENSITIVE_KEYWORDS:
+        for kw in _RAW_KEYWORDS:
             if kw in name:
-                found.add(kw)
+                hits[kw].append(str(path.relative_to(base)))
 
         if path.is_file() and path.suffix in _SCAN_EXTENSIONS:
             try:
                 with open(path, "r", errors="ignore") as f:
                     content = f.read(8192).lower()
-                for kw in _SENSITIVE_KEYWORDS:
+                for kw in _RAW_KEYWORDS:
                     if kw in content:
-                        found.add(kw)
+                        rel = str(path.relative_to(base))
+                        if rel not in hits[kw]:
+                            hits[kw].append(rel)
             except (OSError, PermissionError):
                 pass
 
+    return {kw: paths for kw, paths in hits.items() if paths}
+
+
+def _detect_sensitive_areas(base: Path) -> list[str]:
+    keyword_hits = _collect_keyword_hits(base)
+    found = _sensitive_areas_from_hits(keyword_hits)
     return sorted(found)
+
+
+def _sensitive_areas_from_hits(keyword_hits: dict[str, list[str]], extra_areas: set[str] | None = None) -> set[str]:
+    found: set[str] = set(extra_areas or set())
+    hit_keys = set(keyword_hits)
+    if hit_keys & _AUTH_KEYWORDS:
+        found.update(sorted(hit_keys & _AUTH_KEYWORDS))
+    if hit_keys & _SECURITY_KEYWORDS:
+        found.update(sorted(hit_keys & _SECURITY_KEYWORDS))
+    if hit_keys & _PERSONAL_DATA_KEYWORDS:
+        found.update(sorted(hit_keys & _PERSONAL_DATA_KEYWORDS))
+    if hit_keys & _RISK_KEYWORDS:
+        found.update(sorted(hit_keys & _RISK_KEYWORDS))
+    return found
 
 
 def _compute_signals(
@@ -242,17 +301,18 @@ def _compute_signals(
     ci: str | None,
     databases: list[str],
     base: Path,
+    keyword_hits: dict[str, list[str]] | None = None,
 ) -> dict:
     sa = set(sensitive_areas)
-    auth_kws = {"auth", "login", "logout", "jwt", "token", "password", "secret", "rbac", "role", "roles", "permission", "permissions"}
-    pdata_kws = {"user", "users", "cpf", "email", "payment", "billing"}
+    keyword_hits = keyword_hits or {}
+    hit_keys = set(keyword_hits)
 
-    touches_auth = bool(sa & auth_kws)
-    personal_data = bool(sa & pdata_kws)
-    external = bool(sa & {"payment", "billing"}) or bool(databases)
+    touches_auth = bool(sa & _AUTH_KEYWORDS)
+    personal_data = bool(sa & (_PERSONAL_DATA_KEYWORDS | _SECURITY_KEYWORDS))
+    external = bool(sa & {"payment", "billing", "pagamento", "cobrança"}) or bool(databases)
 
     prod_impact = (
-        "high" if any(k in sa for k in {"auth", "permission", "payment"})
+        "high" if any(k in sa for k in {"auth", "permission", "payment", "token", "secret", "password"})
         else "medium" if any(k in sa for k in {"user", "database", "migration"})
         else "low"
     )
@@ -264,11 +324,22 @@ def _compute_signals(
         "personal_data_possible": personal_data,
         "external_integrations": external,
         "production_impact": prod_impact,
+        "user_interaction": "input" in hit_keys or _project_uses_input(base),
         "has_ci": ci is not None,
         "has_tests": _has_tests(base),
         "has_docker": any("docker" in s.lower() for s in stack),
         "has_database": has_database,
     }
+
+
+def _project_uses_input(base: Path) -> bool:
+    for path in _python_files(base):
+        try:
+            if "input(" in path.read_text(encoding="utf-8", errors="ignore"):
+                return True
+        except OSError:
+            continue
+    return False
 
 
 def _calculate_prcp(signals: dict, stack: list[str]) -> tuple[str, str]:
@@ -287,15 +358,134 @@ def _calculate_prcp(signals: dict, stack: list[str]) -> tuple[str, str]:
     return baseline, elevation
 
 
+def _collect_project_signals(
+    base: Path,
+    stack: list[str],
+    ci: str | None,
+    databases: list[str],
+    keyword_hits: dict[str, list[str]],
+    signals: dict,
+    confidence: str,
+) -> dict:
+    extension_counts: dict[str, int] = {}
+    sample_files: list[str] = []
+    for path in base.rglob("*"):
+        try:
+            rel = path.relative_to(base)
+        except ValueError:
+            continue
+        if should_ignore_path(rel, excluded_suffixes=set()) or not path.is_file():
+            continue
+        suffix = path.suffix.lower() or "<none>"
+        extension_counts[suffix] = extension_counts.get(suffix, 0) + 1
+        if len(sample_files) < 50:
+            sample_files.append(str(rel))
+
+    return {
+        "files": {
+            "sample": sample_files,
+            "extensions": dict(sorted(extension_counts.items())),
+        },
+        "stack_candidates": stack,
+        "ci_candidate": ci,
+        "database_candidates": databases,
+        "keyword_hits": keyword_hits,
+        "raw_sensitive_hits": [
+            {"keyword": keyword, "paths": paths}
+            for keyword, paths in sorted(keyword_hits.items())
+        ],
+        "signals": signals,
+        "confidence": confidence,
+        "notes": [
+            "Deterministic signals are conservative and may need agent-assisted review.",
+            "CLI input() is treated as local user interaction, not personal data by itself.",
+        ],
+    }
+
+
+def _infer_project_type(stack: list[str], base: Path, databases: list[str]) -> str:
+    lowered = {item.lower() for item in stack}
+    if "fastapi" in lowered or "django" in lowered or "flask" in lowered:
+        return "python_web"
+    if "python" in lowered:
+        py_files = _python_files(base)
+        if _project_uses_input(base) or len(py_files) <= 3:
+            return "python_cli"
+        return "generic_python"
+    if "next.js" in " ".join(lowered) or "react" in " ".join(lowered):
+        return "web_app"
+    if "node" in lowered:
+        return "node_project"
+    if databases:
+        return "data_or_database_project"
+    return "unknown"
+
+
+def _architecture_summary(project_type: str, stack: list[str], signals: dict) -> str:
+    if project_type == "python_cli":
+        return "Python command-line project with local user interaction."
+    if project_type == "generic_python":
+        return "Python project without a detected web framework."
+    if project_type == "python_web":
+        return "Python web application based on detected framework signals."
+    if signals.get("has_database"):
+        return "Project includes database or schema-related signals."
+    if stack:
+        return f"Project appears to use {', '.join(stack)}."
+    return "Project architecture could not be confidently inferred from deterministic signals."
+
+
+def _confidence_and_gray_areas(
+    project_type: str,
+    stack: list[str],
+    keyword_hits: dict[str, list[str]],
+    signals: dict,
+) -> tuple[str, list[str], list[str]]:
+    assumptions: list[str] = []
+    gray_areas: list[str] = []
+    confidence = "medium"
+
+    if not stack:
+        confidence = "low"
+        gray_areas.append("Confirmar stack principal do projeto.")
+    else:
+        assumptions.append(f"Stack inferred from deterministic files: {', '.join(stack)}.")
+
+    if project_type in {"python_cli", "generic_python"}:
+        assumptions.append("Projeto Python inferido por arquivos .py versionados.")
+        if signals.get("user_interaction"):
+            assumptions.append("input() foi tratado como interação local de CLI, não como dado pessoal.")
+
+    if keyword_hits.get("user") or keyword_hits.get("users"):
+        gray_areas.append("Verificar se ocorrências de user/users são apenas interação local ou representam identidade persistida.")
+
+    if signals.get("has_database"):
+        gray_areas.append("Confirmar se os sinais de banco representam schema produtivo ou armazenamento local simples.")
+
+    if not gray_areas and stack:
+        confidence = "high"
+
+    return confidence, assumptions, gray_areas
+
+
 def _write_scan_files(base: Path, result: ScanResult) -> list[str]:
     devforge_dir = get_devforge_dir(base)
     prcp_dir = devforge_dir / "prcp"
     prcp_dir.mkdir(exist_ok=True)
+    context_dir = devforge_dir / "context"
+    context_dir.mkdir(exist_ok=True)
 
     profile = {
         "project_name": result.project_name,
+        "project_type": result.project_type,
         "scanned_at": result.scanned_at,
         "detected_stack": result.detected_stack,
+        "architecture_summary": result.architecture_summary,
+        "has_database": result.has_database,
+        "has_auth": result.has_auth,
+        "personal_data_possible": result.personal_data_possible,
+        "external_integrations": result.external_integrations,
+        "production_impact": result.production_impact,
         "ci_detected": result.ci_detected,
         "databases_detected": result.databases_detected,
         "sensitive_areas": result.sensitive_areas,
@@ -304,7 +494,20 @@ def _write_scan_files(base: Path, result: ScanResult) -> list[str]:
             "baseline_level": result.baseline_level,
             "task_elevation": result.task_elevation,
         },
+        "confidence": result.confidence,
+        "assumptions": result.assumptions,
+        "gray_areas": result.gray_areas,
+        "source": result.source,
     }
+
+    signals_path = prcp_dir / "project-signals.json"
+    signals_path.write_text(
+        json.dumps(result.project_signals, indent=2, ensure_ascii=False),
+        encoding="utf-8",
+    )
+
+    brief_path = context_dir / "project-profile-brief.md"
+    brief_path.write_text(_render_project_profile_brief(result), encoding="utf-8")
 
     profile_path = prcp_dir / "project-profile.json"
     profile_path.write_text(json.dumps(profile, indent=2, ensure_ascii=False), encoding="utf-8")
@@ -340,14 +543,74 @@ def _write_scan_files(base: Path, result: ScanResult) -> list[str]:
         "",
         f"- Baseline: {result.baseline_level}",
         f"- Task Elevation: {result.task_elevation}",
+        "",
+        "## Project Profile",
+        "",
+        f"- Type: {result.project_type}",
+        f"- Confidence: {result.confidence}",
+        f"- Source: {result.source}",
     ]
     report_path = prcp_dir / "scan-report.md"
     report_path.write_text("\n".join(report_lines), encoding="utf-8")
 
     return [
+        str(signals_path.relative_to(base)),
+        str(brief_path.relative_to(base)),
         str(profile_path.relative_to(base)),
         str(report_path.relative_to(base)),
     ]
+
+
+def _render_project_profile_brief(result: ScanResult) -> str:
+    return "\n".join([
+        f"# DevForge Project Profile Brief — {result.project_name}",
+        "",
+        "## Purpose",
+        "",
+        "Analyze this repository and improve `.devforge/prcp/project-profile.json`.",
+        "",
+        "## Hard rules",
+        "",
+        "- Do not implement code.",
+        "- Do not alter application files.",
+        "- Only update `.devforge/prcp/project-profile.json` if changes are needed.",
+        "- Do not treat `input()` in a local CLI as personal data automatically.",
+        "- Distinguish local user interaction from personal data collection or persistence.",
+        "",
+        "## Analyze",
+        "",
+        "- stack and project type",
+        "- architecture summary",
+        "- real database, auth, personal-data and integration risks",
+        "- production impact",
+        "- assumptions and gray areas",
+        "",
+        "## Deterministic signals",
+        "",
+        "```json",
+        json.dumps(result.project_signals, indent=2, ensure_ascii=False),
+        "```",
+        "",
+        "## Expected Project Profile fields",
+        "",
+        "- project_name",
+        "- project_type",
+        "- detected_stack",
+        "- architecture_summary",
+        "- has_database",
+        "- has_auth",
+        "- personal_data_possible",
+        "- external_integrations",
+        "- production_impact",
+        "- sensitive_areas",
+        "- prcp.baseline_level",
+        "- prcp.task_elevation",
+        "- confidence",
+        "- assumptions",
+        "- gray_areas",
+        "- source: agent_assisted",
+        "",
+    ])
 
 
 _AUTH_AREA_TAGS = {"auth", "login", "logout", "permission", "permissions", "rbac", "role", "roles"}
@@ -382,28 +645,54 @@ def _suggest_next_command(suggested_next_spec: str | None) -> str:
     return 'devforge specify --idea "Describe your feature idea"'
 
 
+def _recommended_next_command(result: ScanResult) -> str:
+    if result.confidence in {"low", "medium"} or result.gray_areas:
+        return "devforge scan --agent codex"
+    return _suggest_next_command(result.suggested_next_spec)
+
+
 def run_scan(project_name: str, base: Path) -> ScanResult:
     stack, ci, databases = _detect_stack(base)
     extra_db, extra_db_areas = _detect_database_signals(base)
     for label in extra_db:
         if label not in databases:
             databases.append(label)
-    sensitive_areas = sorted(set(_detect_sensitive_areas(base)) | extra_db_areas)
-    signals = _compute_signals(sensitive_areas, stack, ci, databases, base)
+    keyword_hits = _collect_keyword_hits(base)
+    sensitive_areas = sorted(_sensitive_areas_from_hits(keyword_hits, extra_db_areas))
+    signals = _compute_signals(sensitive_areas, stack, ci, databases, base, keyword_hits)
     baseline, elevation = _calculate_prcp(signals, stack)
+    project_type = _infer_project_type(stack, base, databases)
+    confidence, assumptions, gray_areas = _confidence_and_gray_areas(
+        project_type, stack, keyword_hits, signals
+    )
+    project_signals = _collect_project_signals(
+        base, stack, ci, databases, keyword_hits, signals, confidence
+    )
 
     suggested_next_spec = _suggest_next_spec(base, sensitive_areas)
     result = ScanResult(
         project_name=project_name,
+        project_type=project_type,
         detected_stack=stack,
         ci_detected=ci,
         databases_detected=databases,
+        architecture_summary=_architecture_summary(project_type, stack, signals),
+        has_database=signals["has_database"],
+        has_auth=signals["touches_auth"],
+        personal_data_possible=signals["personal_data_possible"],
+        external_integrations=signals["external_integrations"],
+        production_impact=signals["production_impact"],
         sensitive_areas=sensitive_areas,
         signals=signals,
         baseline_level=baseline,
         task_elevation=elevation,
+        confidence=confidence,
+        assumptions=assumptions,
+        gray_areas=gray_areas,
+        source="deterministic",
+        project_signals=project_signals,
         suggested_next_spec=suggested_next_spec,
-        suggested_next_command=_suggest_next_command(suggested_next_spec),
     )
+    result.suggested_next_command = _recommended_next_command(result)
     result.generated_files = _write_scan_files(base, result)
     return result
