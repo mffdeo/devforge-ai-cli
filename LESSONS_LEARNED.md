@@ -34,7 +34,7 @@ The Todo App test was useful because it had realistic web-app signals:
 
 In that context, DevForge produced helpful artifacts. The Evidence Pack and PR Ready Pack were especially useful because they made the merge handoff explicit.
 
-It also exposed risk-classification issues. Some early decisions stayed in `pending_human_review` even when human review was present. That forced a clearer rule set for `status` and `final_decision`.
+It also exposed risk-classification issues. Some early decisions stayed in `pending_human_review` even when human review was present. That forced a clearer rule set for status and `final_decision`.
 
 ## Tests With A Calculator CLI
 
@@ -51,7 +51,7 @@ The project was intentionally simple:
 
 The desired feature was "history of calculations during the session." Deterministic heuristics initially overreacted:
 
-- `session` / `sessao` looked like auth;
+- the word "session" could be confused with authentication context;
 - `input()` looked like user data;
 - negative scope such as "no database" could still trigger database risk;
 - a lightweight local feature could be pushed into `Hardened` / `REQUIRE_APPROVAL`.
@@ -127,16 +127,18 @@ signals -> agent-assisted profile -> user approval -> planning -> policy -> evid
 
 If I rebuilt DevForge from scratch, I would:
 
-1. Start with the artifact model, not the scanner.
-2. Treat deterministic scan output as raw evidence only.
-3. Require explicit Project Profile approval earlier.
-4. Make gray areas first-class in every phase.
-5. Use an external agent only for reasoning over briefs, not hidden automation.
-6. Keep all generated decisions explainable and editable.
-7. Avoid product claims until the system has been tested across many real projects.
+- Start with the artifact model, not the scanner.
+- Treat deterministic scan output as raw evidence only.
+- Require explicit Project Profile approval earlier.
+- Make gray areas first-class in every phase.
+- Use an external agent only for reasoning over briefs, not hidden automation.
+- Keep all generated decisions explainable and editable.
+- Avoid product claims until the system has been tested across many real projects.
 
 ## Final Takeaway
 
 DevForge CLI is best understood as a personal experiment in AI-assisted software governance.
 
-The project did not prove that a CLI can automatically govern any repository. It did show that AI-assisted development benefits from local, inspectable, structured handoffs.
+The project did not prove that a CLI can automatically govern any repository. It showed something more useful: AI-assisted development benefits from local, inspectable, structured handoffs that humans can review before trusting.
+
+This file may become the basis for a future write-up about what I tried to build, what broke, and what I learned about AI-assisted software development.
